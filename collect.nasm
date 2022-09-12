@@ -25,10 +25,13 @@
 ; page descriptors
 
                         ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - requested size
+                        ; rsi [rbp-0x10] - requested size, in words
+                        ;     [rbp-0x18] - RBX backup
 init_page               enter       0x10,0
                         mov         [rbp-0x08],rdi
+                        shl         rsi,3   ; *8
                         mov         [rbp-0x10],rsi
+                        mov         [rbp-0x18],rbx
                         mov         rdi,rsi
                         call        xalloc
                         mov         rbx,[rbp-0x08]
@@ -37,10 +40,13 @@ init_page               enter       0x10,0
                         mov         [rbx+pd_numwords],rdx
                         xor         rax,rax
                         mov         [rbx+pd_usedwords],rax
+                        mov         rbx,[rbp-0x18]
                         leave
                         ret
 
 ; memory allocation
+;   using standard C library here to avoid handling Linux memory management
+;   directly
 
                         extern      malloc,realloc,free
 
@@ -75,6 +81,8 @@ xrealloc                enter       0,0
                         ret
 
 ; error handling
+;   using C library for stderr output and exit, since we have it anyway
+
                         extern      fprintf,stderr,exit
 
 oom                     enter       0,0
@@ -87,16 +95,20 @@ oom                     enter       0,0
                         leave
                         ret
 
+; read-only data section
+
                         section     .rodata
 
 oommsg                  db          "? out of memory",10,0
 
+; regular data section
+
                         section     .data
+
+; block-structured storage section
 
                         section     .bss
 
-                        align       8,resb 1
-
-space1                  resb        pagedesc_size
-space2                  resb        pagedesc_size
-hndspc                  resb        pagedesc_size
+space1                  resq        pagedesc_size/8
+space2                  resq        pagedesc_size/8
+hndspc                  resq        pagedesc_size/8
