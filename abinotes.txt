@@ -1,0 +1,23 @@
+=========
+ABI Notes
+=========
+
+cf. System V ABI description for x86-84 (Date retrieved: 2022-09-12):
+       https://gitlab.com/x86-psABIs/x86-64-ABI
+
+  p. 20f of PDF version (paraphrased):
+  - registers RBP, RBX, R12..R15 belong to the caller and hence must be saved
+  - EMMS/FEMMS must be used to return to FPU mode after using MMX
+  - DF must be clear upon procedure entry and exit
+  - RSP must be 16-byte aligned for regular calls (before the CALL instruction
+    is issued).
+
+  pp. 25, 143 of PDF version:
+  - register parameters are passed in RDI, RSI, RDX, RCX/R10(syscall), R8, R9,
+    or XMM0..XMM7, all others are passed on the stack
+  - Linux syscalls destroy registers RCX and R11, and the result is in RAX,
+    which is -errno.
+  - The Linux syscall index is passed in RAX, and parameters are never passed
+    on the stack.
+
+cf. /usr/include/x86_64-linux-gnu/asm/unistd_64.h for table of syscalls

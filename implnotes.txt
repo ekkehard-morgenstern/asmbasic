@@ -1,0 +1,20 @@
+====================
+Implementation Notes
+====================
+
+Caveats:
+      cf. file "abinotes.txt" included with this source code.
+
+Further Notes:
+
+- I decided to use ENTER for clarity instead of the regular
+
+        PUSH    RBP
+        MOV     RBP, RSP
+
+  as function prologue, despite the size/speed tradeoff.
+
+- compilation of individual files:
+    for NASM; assemble with nasm -f elf64 -o hello.o hello.asm
+
+- to use C library linkage, link with gcc -o program <module-list>
