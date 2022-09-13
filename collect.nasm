@@ -53,7 +53,10 @@ init_page               enter       0x20,0
                         ; rdi - requested size, in bytes
 
 xalloc                  enter       0,0
-                        call        malloc
+                        or          rdi,rdi
+                        jnz         .nonzero
+                        inc         rdi
+.nonzero                call        malloc
                         or          rax,rax
                         jnz         .ok
                         call        oom
@@ -73,7 +76,10 @@ xfree                   enter       0,0
                         ; rsi - new size, in bytes
 
 xrealloc                enter       0,0
-                        call        realloc
+                        or          rsi,rsi
+                        jnz         .nonzero
+                        inc         rsi
+.nonzero                call        realloc
                         or          rax,rax
                         jnz         .ok
                         call        oom
