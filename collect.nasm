@@ -27,7 +27,7 @@
                         ; rdi [rbp-0x08] - address
                         ; rsi [rbp-0x10] - requested size, in words
                         ;     [rbp-0x18] - RBX backup
-init_page               enter       0x10,0
+init_page               enter       0x20,0
                         mov         [rbp-0x08],rdi
                         shl         rsi,3   ; *8
                         mov         [rbp-0x10],rsi
