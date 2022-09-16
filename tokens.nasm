@@ -62,20 +62,27 @@ TKM_HASHSIZE            equ         1000
 
                         ;     [rbp-0x08] - RBX backup
                         ;     [rbp-0x10] - R12 backup
-init_tokenizer          enter       0x10,0
+                        ;     [rbp-0x18] - R13 backup
+                        ;     [rbp-0x20] - R14 backup
+init_tokenizer          enter       0x20,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],r13
+                        mov         [rbp-0x20],r14
                         cld
                         lea         rbx,[g_tokenmap]
                         lea         r12,[firstmapentry]
                         mov         [rbx+tkm_first],r12
                         ; r12 - map entry
-.mapentry_loop          mov         rsi,[r12+tme_block]
-                        mov         rcx,[r12+tme_blksize]
-                        ; rsi - block pointer, rcx - block size
+.mapentry_loop          mov         r13,[r12+tme_block]
+                        mov         r14,[r12+tme_blksize]
+                        add         r14,r13
+                        ; r13 - block pointer, r14 - end pointer
 .initblock_loop:
 
 
+                        mov         r14,[rbp-0x20]
+                        mov         r13,[rbp-0x18]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
