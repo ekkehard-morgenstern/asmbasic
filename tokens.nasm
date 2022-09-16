@@ -60,12 +60,11 @@ TKM_HASHSIZE            equ         1000
 ;                         leave
 ;                         ret
 
-                        ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - requested size, in words
-                        ;     [rbp-0x18] - RBX backup
-init_tokenizer          enter       0,0
-                        push        rbx
-                        push        r12
+                        ;     [rbp-0x08] - RBX backup
+                        ;     [rbp-0x10] - R12 backup
+init_tokenizer          enter       0x10,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
                         cld
                         lea         rbx,[g_tokenmap]
                         lea         r12,[firstmapentry]
@@ -77,8 +76,8 @@ init_tokenizer          enter       0,0
 .initblock_loop:
 
 
-                        pop         r12
-                        pop         rbx
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
                         leave
                         ret
 
