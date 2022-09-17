@@ -56,6 +56,7 @@ xrealloc                enter       0,0
 oom                     enter       0,0
                         mov         rdi,[stderr]
                         lea         rsi,[oommsg]
+                        xor         al,al
                         call        fprintf
                         xor         rdi,rdi
                         inc         rdi

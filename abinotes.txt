@@ -11,6 +11,7 @@ cf. System V ABI description for x86-84 (Date retrieved: 2022-09-12):
   - DF must be clear upon procedure entry and exit
   - RSP must be 16-byte aligned for regular calls (before the CALL instruction
     is issued).
+  - AL must contain the number of variable arguments in vector registers
 
   pp. 25, 143 of PDF version:
   - register parameters are passed in RDI, RSI, RDX, RCX/R10(syscall), R8, R9,

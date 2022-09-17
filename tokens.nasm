@@ -52,8 +52,8 @@ TKM_HASHSIZE            equ         1000
 
                         section     .text
 
-                        global      init_tokenizer
-                        extern      xalloc
+                        global      init_tokenizer,dump_tokenmap
+                        extern      xalloc,printf
 
 
                         ;     [rbp-0x08] - RBX backup
@@ -177,6 +177,51 @@ computehash             enter       0x10,0
                         div         bx
                         movzx       rax,dx
                         ; done
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+                        ; [ebp-0x08] rbx backup
+
+dump_tokenmap           enter       0x20,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],r13
+                        lea         rbx,[g_tokenmap]
+                        ; rbx - tokenmap hash table
+                        lea         rbx,[rbx+tkm_hash]
+                        xor         r12,r12
+                        ; r12 - index
+                        ; print index "[nnnn]"
+.nextindex              lea         rdi,[dtm_ixfmt]
+                        mov         rsi,r12
+                        xor         al,al
+                        call        printf
+                        ; r13 - token descriptor list pointer
+                        mov         r13,[rbx+r12*8]
+                        or          r13,r13
+                        jz          .noentry
+                        ; print entry name
+.printentry             lea         rdi,[dtm_namfmt]
+                        movzx       rsi,byte [r13+td_namelen]
+                        mov         rdx,rsi
+                        lea         rcx,[r13+tokendesc_size]
+                        xor         al,al
+                        call        printf
+                        ; next entry with same hash value
+                        mov         r13,[r13+td_nexthash]
+                        or          r13,r13
+                        jnz         .printentry
+                        ; print line feed
+.noentry                lea         rdi,[dtm_lf]
+                        xor         al,al
+                        call        printf
+                        ; go to next index
+                        inc         r12
+                        cmp         r12,TKM_HASHSIZE
+                        jb          .nextindex
+                        mov         r13,[rbp-0x18]
+                        mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
                         ret
@@ -339,11 +384,14 @@ tokentbl                db          4,2,"ABS(",0x03,0x00
                         db          3,2,"XOR",0x03,0x89
 tokentbl_size           equ         $-tokentbl
 tokentbl_name           db          7,"default"
+
+dtm_ixfmt               db          "[%04u]",0
+dtm_namfmt              db          " %-*.*s",0
+dtm_lf                  db          10,0
+
                         align       8,db 0
 
-
 ; regular data section
-
                         section     .data
 
 firstmapentry           dq          0
