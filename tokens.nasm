@@ -67,6 +67,7 @@ TKM_HASHSIZE            equ         1000
                         ;     [rbp-0x18] - R13 backup
                         ;     [rbp-0x20] - R14 backup
                         ;     [rbp-0x28] - R15 backup
+                        ;     [rbp-0x30] - next R13 value
 init_tokenizer          enter       0x30,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
@@ -76,6 +77,12 @@ init_tokenizer          enter       0x30,0
                         lea         rbx,[g_tokenmap]
                         lea         r12,[firstmapentry]
                         mov         [rbx+tkm_first],r12
+                        ; clear hash table
+                        cld                                 ; forward dir
+                        lea         rdi,[rbx+tkm_hash]      ; target
+                        mov         rcx,TKM_HASHSIZE        ; count
+                        xor         rax,rax                 ; value
+                        rep         stosq                   ; fill memory
                         ; r12 - map entry
 .mapentry_loop          mov         r13,[r12+tme_block]
                         mov         r14,[r12+tme_blksize]
@@ -99,6 +106,9 @@ init_tokenizer          enter       0x30,0
                         mov         cl,tokeninit_size
                         add         cl,[r13+ti_namelen]
                         add         cl,[r13+ti_enclen]
+                        ; compute next tokeninit pointer and remember it
+                        lea         rax,[r13+rcx]
+                        mov         [rbp-0x30],rax
                         ; source is the original init block
                         mov         rsi,r13
                         ; target is the new descriptor block
@@ -110,14 +120,22 @@ init_tokenizer          enter       0x30,0
                         mov         al,[r15+td_namelen]
                         movzx       rsi,al
                         call        computehash
-
-
-
-
-
-
-
-
+                        ; get previous address in hash table that has the same
+                        ; hash value
+                        mov         rdx,[rbx+tkm_hash+rax*8]
+                        ; store that in the next hash field
+                        mov         [r15+td_nexthash],rdx
+                        ; now set the new entry in the hash table
+                        mov         [rbx+tkm_hash+rax*8],r15
+                        ; go to next init item (remembered earlier)
+                        mov         r13,[rbp-0x30]
+                        cmp         r13,r14
+                        jb          .initblock_loop
+                        ; done: get next map entry, if any
+                        mov         r12,[r12+tme_next]
+                        or          r12,r12
+                        jnz         .mapentry_loop
+                        ; complete
                         mov         r15,[rbp-0x28]
                         mov         r14,[rbp-0x20]
                         mov         r13,[rbp-0x18]
@@ -128,8 +146,46 @@ init_tokenizer          enter       0x30,0
 
                         ; rdi - name
                         ; rsi - name length
-computehash:
-
+                        ;       [ebp-0x08] - RBX backup
+computehash             enter       0x10,0
+                        mov         [rbp-0x08],rbx
+                        ; set forward direction
+                        cld
+                        ; swap rsi and rdi:
+                        ; rsi -> name
+                        ; rdi -> name length
+                        xchg        rdi,rsi
+                        ; load name length into counter
+                        mov         rcx,rdi
+                        ; preset some arbitrary values
+                        mov         bx,0xf3a7
+                        mov         dx,0x8492
+                        ; clear some register parts
+                        xor         ah,ah
+                        xor         rbx,rbx
+                        ; loop
+                        ; load next byte
+.nextbyte               lodsb
+                        ; add to values
+                        add         bx,ax
+                        xor         dx,ax
+                        sub         bx,dx
+                        rol         bx,3
+                        ror         dx,5
+                        ; continue loop
+                        loop        .nextbyte
+                        ; finish
+                        xor         ax,ax
+                        xor         dx,bx
+                        xchg        dx,ax
+                        ; compute modulo of result with hash size
+                        mov         bx,TKM_HASHSIZE
+                        div         bx
+                        movzx       rax,dx
+                        ; done
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
 
                         ; rdi [rbp-0x08] - address
                         ; rsi [rbp-0x10] - requested size, in words
