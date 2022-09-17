@@ -52,15 +52,9 @@ TKM_HASHSIZE            equ         1000
 
                         section     .text
 
+                        global      init_tokenizer
                         extern      xalloc
 
-;                             global  main
-
-; main                    enter       0,0
-;                         call        oom
-;                         xor         rax,rax
-;                         leave
-;                         ret
 
                         ;     [rbp-0x08] - RBX backup
                         ;     [rbp-0x10] - R12 backup

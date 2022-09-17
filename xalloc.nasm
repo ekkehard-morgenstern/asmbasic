@@ -3,6 +3,8 @@
                         cpu         x64
                         bits        64
 
+                        section     .text
+
 ; memory allocation
 ;   using standard C library here to avoid handling Linux memory management
 ;   directly
