@@ -1,8 +1,16 @@
 
+ifdef DEBUG
+ASMOPT=-g -F dwarf
+LNKOPT=-g
+else
+ASMOPT=
+LNKOPT=-s
+endif
+
 .SUFFIXES:	.nasm
 
 .nasm.o:
-	nasm -f elf64 -o $@ $<
+	nasm -f elf64 $(ASMOPT) -l $*.lst -o $@ $<
 
 all:	asmbasic
 	echo ok >all
@@ -10,7 +18,7 @@ all:	asmbasic
 MODULES=main.o xalloc.o tokens.o
 
 asmbasic: $(MODULES)
-	gcc -Wall -o asmbasic $(MODULES) -lc
+	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lc
 
 main.o: 	main.nasm
 
