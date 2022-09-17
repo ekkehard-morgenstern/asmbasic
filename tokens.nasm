@@ -52,6 +52,8 @@ TKM_HASHSIZE            equ         1000
 
                         section     .text
 
+                        extern      xalloc
+
 ;                             global  main
 
 ; main                    enter       0,0
@@ -64,12 +66,13 @@ TKM_HASHSIZE            equ         1000
                         ;     [rbp-0x10] - R12 backup
                         ;     [rbp-0x18] - R13 backup
                         ;     [rbp-0x20] - R14 backup
-init_tokenizer          enter       0x20,0
+                        ;     [rbp-0x28] - R15 backup
+init_tokenizer          enter       0x30,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],r13
                         mov         [rbp-0x20],r14
-                        cld
+                        mov         [rbp-0x28],r15
                         lea         rbx,[g_tokenmap]
                         lea         r12,[firstmapentry]
                         mov         [rbx+tkm_first],r12
@@ -78,15 +81,54 @@ init_tokenizer          enter       0x20,0
                         mov         r14,[r12+tme_blksize]
                         add         r14,r13
                         ; r13 - block pointer, r14 - end pointer
-.initblock_loop:
+                        ; first, compute size of new entry to be allocated
+.initblock_loop:        mov         al,tokendesc_size
+                        add         al,[r13+ti_namelen]
+                        add         al,[r13+ti_enclen]
+                        movzx       rdi,al
+                        ; allocate memory
+                        call        xalloc
+                        mov         r15,rax
+                        ; r15 - token descriptor
+                        xor         rax,rax
+                        mov         [r15+td_nexthash],rax
+                        ; prepare copying by setting direction to forward
+                        cld
+                        ; compute size of data to be copied
+                        xor         rcx,rcx
+                        mov         cl,tokeninit_size
+                        add         cl,[r13+ti_namelen]
+                        add         cl,[r13+ti_enclen]
+                        ; source is the original init block
+                        mov         rsi,r13
+                        ; target is the new descriptor block
+                        lea         rdi,[r15+td_namelen]
+                        ; copy
+                        rep         movsb
+                        ; now, compute the hash value for the name
+                        lea         rdi,[r15+tokendesc_size]
+                        mov         al,[r15+td_namelen]
+                        movzx       rsi,al
+                        call        computehash
 
 
+
+
+
+
+
+
+                        mov         r15,[rbp-0x28]
                         mov         r14,[rbp-0x20]
                         mov         r13,[rbp-0x18]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
                         ret
+
+                        ; rdi - name
+                        ; rsi - name length
+computehash:
 
 
                         ; rdi [rbp-0x08] - address
