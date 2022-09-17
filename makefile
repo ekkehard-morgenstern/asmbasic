@@ -15,6 +15,9 @@ endif
 all:	asmbasic
 	echo ok >all
 
+clean:
+	rm asmbasic *.o *.lst
+
 MODULES=main.o xalloc.o tokens.o
 
 asmbasic: $(MODULES)
