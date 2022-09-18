@@ -8,8 +8,10 @@
 
 ; token descriptors
                         struc       tokendesc
-                            ; next entry with same hash value
+                            ; next entry with same hash value, in regular hash
                             td_nexthash:    resq    1
+                            ; next entry with same hash value, in reverse hash
+                            td_nextrev:     resq    1
                             ; name length, in bytes
                             td_namelen:     resb    1
                             ; encoding length, in bytes
@@ -48,6 +50,8 @@ TKM_HASHSIZE            equ         1000
                             tkm_first:      resq    1
                             ; hash table
                             tkm_hash:       resq    TKM_HASHSIZE
+                            ; reverse hash table
+                            tkm_revhash:    resq    TKM_HASHSIZE
                         endstruc
 
                         section     .text
@@ -77,10 +81,15 @@ init_tokenizer          enter       0x30,0
                         mov         rcx,TKM_HASHSIZE        ; count
                         xor         rax,rax                 ; value
                         rep         stosq                   ; fill memory
+                        lea         rdi,[rbx+tkm_revhash]   ; target
+                        mov         rcx,TKM_HASHSIZE        ; count
+                        rep         stosq                   ; fill memory
+                        ; --- process next map entry --------------------------
                         ; r12 - map entry
 .mapentry_loop          mov         r13,[r12+tme_block]
                         mov         r14,[r12+tme_blksize]
                         add         r14,r13
+                        ; --- process next tokeninit entry --------------------
                         ; r13 - block pointer, r14 - end pointer
                         ; first, compute size of new entry to be allocated
 .initblock_loop:        mov         al,tokendesc_size
@@ -93,6 +102,8 @@ init_tokenizer          enter       0x30,0
                         ; r15 - token descriptor
                         xor         rax,rax
                         mov         [r15+td_nexthash],rax
+                        mov         [r15+td_nextrev],rax
+                        ; --- copy tokeninit to tokendesc ---------------------
                         ; prepare copying by setting direction to forward
                         cld
                         ; compute size of data to be copied
@@ -109,10 +120,10 @@ init_tokenizer          enter       0x30,0
                         lea         rdi,[r15+td_namelen]
                         ; copy
                         rep         movsb
+                        ; --- enter tokendesc into name hash table ------------
                         ; now, compute the hash value for the name
                         lea         rdi,[r15+tokendesc_size]
-                        mov         al,[r15+td_namelen]
-                        movzx       rsi,al
+                        movzx       rsi,byte [r15+td_namelen]
                         call        computehash
                         ; get previous address in hash table that has the same
                         ; hash value
@@ -121,6 +132,24 @@ init_tokenizer          enter       0x30,0
                         mov         [r15+td_nexthash],rdx
                         ; now set the new entry in the hash table
                         mov         [rbx+tkm_hash+rax*8],r15
+                        ; --- enter tokendesc into encoding hash table --------
+                        ; now, compute the "reverse" hash value for the encoding
+                        lea         rdi,[r15+tokendesc_size]
+                        ; the encoding bytes come right after the name
+                        movzx       rax,byte [r15+td_namelen]
+                        add         rdi,rax
+                        ; get the length
+                        movzx       rsi,byte [r15+td_enclen]
+                        ; compute the "reverse" hash for the encoding
+                        call        computehash
+                        ; get previous address in "reverse" hash table that has
+                        ; the same hash value
+                        mov         rdx,[rbx+tkm_revhash+rax*8]
+                        ; store that in the next rev field
+                        mov         [r15+td_nextrev],rdx
+                        ; now set the new entry in the hash table
+                        mov         [rbx+tkm_revhash+rax*8],r15
+                        ; --- proceed to next item ----------------------------
                         ; go to next init item (remembered earlier)
                         mov         r13,[rbp-0x30]
                         cmp         r13,r14
