@@ -255,12 +255,112 @@ dump_tokenmap           enter       0x20,0
                         leave
                         ret
 
+                        ; The main tokenizer routine.
+                        ; NOTE that the input line gets replaced with the
+                        ; idealized form to be used during tokenization.
+                        ; The tokenizer returns the length of this line.
+                        ;
+                        ;
                         ; rdi [rbp-0x08] - address
                         ; rsi [rbp-0x10] - size of text, in bytes
                         ;     [rbp-0x18] - RBX backup
-tokenize                enter       0,0
+                        ;
+                        ; output: rax - length of cleaned up input
+tokenize                enter       0x20,0
+                        mov         [rbp-0x08],rdi
+                        mov         [rbp-0x10],rsi
+                        ; call preparation code
+                        call        tok_prepare
+                        ; store new length
+                        mov         [rbp-0x10],rax
+
+                        ; return length of idealized input
+                        mov         rax,[rbp-0x10]
                         leave
                         ret
+
+                        ; SYNOPSIS:
+                        ;   tok_prepare() takes a text line. It goes over all
+                        ;   characters in the line, and reduces whitespace to
+                        ;   single spaces, except within quotes ("..."). It also
+                        ;   converts all letters to upper case, again, except
+                        ;   within quotes.
+                        ;
+                        ; rdi [rbp-0x08] - address of text line
+                        ; rsi [rbp-0x10] - size of text, in bytes
+                        ;     [rbp-0x18] - RBX backup
+tok_prepare             enter       0,0
+                        ; set r9 to the beginning of input (save for later)
+                        mov         r9,rdi
+                        ; compute r8 - end of input pointer
+                        mov         r8,rsi
+                        add         r8,rdi
+                        ; make rsi (source) point to the same location as
+                        ; rdi (target)
+                        mov         rsi,rdi
+                        ; clear direction flag (forward)
+                        cld
+                        ; loop body: check against end pointer first
+.scanner                cmp         rsi,r8
+                        jae         .scanend
+                        ; load a byte
+                        lodsb
+                        ; if it's a space or tab, jump to space eliminator
+                        cmp         al,0x20
+                        je          .scanspc
+                        cmp         al,0x09
+                        je          .scanspc
+                        ; if it's a double quote character, ", jump to
+                        ; double quote handler
+                        cmp         al,0x22
+                        je          .dblquot
+                        ; check if it's a lower case letter
+                        cmp         al,0x61     ; 'a'
+                        jb          .noletter
+                        cmp         al,0x7a     ; 'z'
+                        ja          .noletter
+                        ; it is a lowercase letter: turn to upper case
+                        xor         al,0x20
+                        ; store character
+.noletter               stosb
+                        ; continue loop
+                        jmp         .scanner
+                        ; at the end, compute the new size and return it
+.scanend                mov         rax,rdi
+                        sub         rax,r9
+                        leave
+                        ret
+                        ; space scanner
+.scanspc                cmp         rsi,r8      ; beyond input?
+                        jae         .spcend
+                        ; load next byte
+                        lodsb
+                        cmp         al,0x20
+                        je          .scanspc
+                        cmp         al,0x09
+                        je          .scanspc
+                        ; not a space: backpedal
+                        dec         rsi
+                        ; end of whitespace: store a space
+.spcend                 mov         al,0x20
+                        stosb
+                        ; resume with normal operation
+                        jmp         .scanner
+                        ; double quote handler
+                        ; store it
+.dblquot                stosb
+                        ; check for end
+                        cmp         rsi,r8
+                        jae         .quotend
+                        ; load next byte
+                        lodsb
+                        ; if it's not a double quote, keep copying
+                        cmp         al,0x22
+                        jne         .dblquot
+                        ; store closing double quote
+                        stosb
+                        ; done, jump back to scanner
+.quotend                jmp         .scanner
 
                         ; rdi [rbp-0x08] - address
                         ; rsi [rbp-0x10] - size of encoded text, in bytes
