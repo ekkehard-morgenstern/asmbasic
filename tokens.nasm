@@ -256,14 +256,14 @@ dump_tokenmap           enter       0x20,0
                         ret
 
                         ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - requested size, in words
+                        ; rsi [rbp-0x10] - size of text, in bytes
                         ;     [rbp-0x18] - RBX backup
 tokenize                enter       0,0
                         leave
                         ret
 
                         ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - requested size, in words
+                        ; rsi [rbp-0x10] - size of encoded text, in bytes
                         ;     [rbp-0x18] - RBX backup
 detokenize              enter       0,0
                         leave
@@ -273,7 +273,7 @@ detokenize              enter       0,0
 
                         section     .rodata
 
-tokentbl                                        db          4,2,"ABS(",0x03,0x00
+tokentbl                db          4,2,"ABS(",0x03,0x00
                         db          5,2,"AFTER",0x03,0x01
                         db          5,2,"AGAIN",0x03,0x02
                         db          3,2,"AND",0x03,0x03
