@@ -5,6 +5,8 @@
                         cpu         x64
                         bits        64
 
+TOKENPAD_DWORDS         equ         10240
+DIGITBUF_BYTES          equ         1024
 
 ; token descriptors
                         struc       tokendesc
@@ -280,15 +282,162 @@ tokenize                enter       0x20,0
                         ret
 
                         ; SYNOPSIS:
+                        ;   tok_main() takes a text line that has been
+                        ;   prepared by tok_prepare(). It does the following:
+                        ;   - numbers are converted to 64-bit IEEE
+                        ;     floating-point values and stored with a 01 prefix.
+                        ;     &H introduces hexadecimal mode.
+                        ;     &D (optional) introduces decimal mode.
+                        ;     &O introduces octal mode.
+                        ;     &B introduces binary mode.
+                        ;     The digits are stored into a either a bit pattern
+                        ;     (hex/oct/bin) or a BCD pattern (dec). The location
+                        ;     or absence of the decimal point is noted, as is
+                        ;     the value of the exponent, and the number of
+                        ;     digits. Then the floating-point value is
+                        ;     constructed.
+                        ;   - identifiers are stored with 02 <len> prefix.
+                        ;   - keywords are stored with a 03/... prefix.
+                        ;   - spaces are ignored.
+                        ;
+                        ; rdi [rbp-0x08] - pointer to text
+                        ; rsi [rbp-0x10] - size of text, in bytes
+                        ;     [rbp-0x18] - rbx backup
+                        ;
+tok_main                enter       0x20,0
+                        mov         [rbp-0x08],rdi
+                        mov         [rbp-0x10],rsi
+                        mov         [rbp-0x18],rbx
+                        cld
+                        ; r8 - end pointer
+                        mov         r8,rdi
+                        add         r8,rsi
+                        ; rsi - text pointer
+                        ; rdi - token pad pointer
+                        ; r9  - token pad end pointer
+                        lea         rdi,[g_tokenpad]
+                        lea         r9,[rdi+4*TOKENPAD_DWORDS]
+                        ; read next byte
+.nextbyte               cmp         rsi,r8
+                        jae         .inputend
+                        lodsb
+                        ; check
+                        cmp         al,'&'
+                        je          .ampersand
+                        cmp         al,'.'
+                        je          .dot
+                        cmp         al,'0'
+                        jb          .notdigit
+                        cmp         al,'9'
+                        ja          .notdigit
+                        jmp         .dodec2
+.notdigit               nop
+
+.inputend               nop
+                        ; restore regs and exit
+                        mov         rbx,[rbp-0x18]
+                        leave
+                        ret
+.amperr                 cmp         rdi,r9
+                        jae         .inputend
+                        mov         eax,'&'
+                        stosd
+                        jmp         .inputend
+                        ; & ...
+                        ; read follow-up byte
+.ampersand              cmp         rsi,r8
+                        jae         .amperr
+                        lodsb
+                        cmp         al,'H'
+                        je          .dohex
+                        cmp         al,'D'
+                        je          .dodec
+                        cmp         al,'O'
+                        je          .dooct
+                        cmp         al,'B'
+                        je          .dobin
+                        ; not one of those
+                        ; rewind
+                        dec         rsi
+                        cmp         rdi,r9
+                        jae         .inputend
+                        mov         eax,'&'
+                        stosd
+                        jmp         .nextbyte
+.doterr2                dec         rsi
+.doterr                 cmp         rdi,r9
+                        jae         .inputend
+                        mov         eax,'.'
+                        stosd
+                        jmp         .nextbyte
+                        ; a dot: check follow-up byte
+.dot                    cmp         rsi,r8
+                        jae         .doterr
+                        lodsb
+                        cmp         al,'0'
+                        jb          .doterr2
+                        cmp         al,'9'
+                        ja          .doterr2
+                        ; it's a decimal digit
+                        mov         bl,10   ; base 10
+                        mov         r10,rdi ; r10 - backup of rdi
+                        ; store 0.d in digit buffer
+                        lea         rdi,[digitbuf]
+                        lea         rcx,[rdi+DIGITBUF_BYTES]
+                        mov         dl,al
+                        mov         al,'0'
+                        stosb
+                        mov         al,'.'
+                        stosb
+                        mov         al,dl
+                        stosb
+                        jmp         .decimals
+.dohex                  mov         bl,16   ; base 16
+                        jmp         .integral
+.dodec                  mov         bl,10   ; base 10
+                        jmp         .integral
+.dooct                  mov         bl,8    ; base 8
+                        jmp         .integral
+.dobin                  mov         bl,2    ; base 2
+                        jmp         .integral
+                        ; when having a decimal digit in al
+.dodec2                 lea         rdi,[digitbuf]
+                        lea         rcx,[rdi+DIGITBUF_BYTES]
+                        mov         bl,10
+                        stosb
+                        jmp         .integloop
+                        ; processing an integer
+.integral               lea         rdi,[digitbuf]
+                        lea         rcx,[rdi+DIGITBUF_BYTES]
+                        mov         bl,10
+.integloop              lodsb
+                        cmp         al,'0'
+                        jb          .intnodig
+                        cmp         al,'9'
+                        ja          .intnodig
+                        sub         al,'0'
+                        cmp         al,bl
+                        jae         .intdigerr
+                        add         al,'0'
+                        stosb
+
+.intnodig               nop
+.intdigerr              nop
+.decimals               nop
+
+
+
+
+
+                        ; SYNOPSIS:
                         ;   tok_prepare() takes a text line. It goes over all
                         ;   characters in the line, and reduces whitespace to
                         ;   single spaces, except within quotes ("..."). It also
                         ;   converts all letters to upper case, again, except
                         ;   within quotes.
                         ;
-                        ; rdi [rbp-0x08] - address of text line
-                        ; rsi [rbp-0x10] - size of text, in bytes
-                        ;     [rbp-0x18] - RBX backup
+                        ; rdi - address of text line
+                        ; rsi - size of text, in bytes
 tok_prepare             enter       0,0
                         ; set r9 to the beginning of input (save for later)
                         mov         r9,rdi
@@ -548,3 +697,5 @@ firstmapentry           dq          0
                         section     .bss
 
 g_tokenmap              resq        tokenmap_size/8
+g_tokenpad              resd        TOKENPAD_DWORDS
+digitbuf                resb        DIGITBUF_BYTES
