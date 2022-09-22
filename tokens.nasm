@@ -322,11 +322,13 @@ tok_main                enter       0x20,0
                         jae         .inputend
                         lodsb
                         ; check
-                        cmp         al,'&'
+                        cmp         al,' '      ; skip spaces
+                        je          .nextbyte
+                        cmp         al,'&'      ; numbers with explicit base
                         je          .ampersand
-                        cmp         al,'.'
+                        cmp         al,'.'      ; decimal without leading digits
                         je          .dot
-                        cmp         al,'0'
+                        cmp         al,'0'      ; leading decimal digits
                         jb          .notdigit
                         cmp         al,'9'
                         ja          .notdigit
@@ -342,7 +344,7 @@ tok_main                enter       0x20,0
                         jae         .inputend
                         mov         eax,'&'
                         stosd
-                        jmp         .inputend
+                        jmp         .nextbyte
                         ; & ...
                         ; read follow-up byte
 .ampersand              cmp         rsi,r8
@@ -359,11 +361,7 @@ tok_main                enter       0x20,0
                         ; not one of those
                         ; rewind
                         dec         rsi
-                        cmp         rdi,r9
-                        jae         .inputend
-                        mov         eax,'&'
-                        stosd
-                        jmp         .nextbyte
+                        jmp         .amperr
 .doterr2                dec         rsi
 .doterr                 cmp         rdi,r9
                         jae         .inputend
@@ -401,28 +399,42 @@ tok_main                enter       0x20,0
 .dobin                  mov         bl,2    ; base 2
                         jmp         .integral
                         ; when having a decimal digit in al
-.dodec2                 lea         rdi,[digitbuf]
-                        lea         rcx,[rdi+DIGITBUF_BYTES]
+.dodec2                 dec         rsi
                         mov         bl,10
-                        stosb
-                        jmp         .integloop
                         ; processing an integer
 .integral               lea         rdi,[digitbuf]
                         lea         rcx,[rdi+DIGITBUF_BYTES]
-                        mov         bl,10
-.integloop              lodsb
+.integloop              cmp         rsi,r8
+                        jae         .intstop
+                        lodsb
                         cmp         al,'0'
                         jb          .intnodig
                         cmp         al,'9'
                         ja          .intnodig
                         sub         al,'0'
                         cmp         al,bl
-                        jae         .intdigerr
+                        jae         .intstop
                         add         al,'0'
+                        jmp         .intwrite
+.intnodig               cmp         al,'A'
+                        jb          .intnodig2
+                        cmp         al,'F'
+                        ja          .intnodig2
+                        sub         al,'A'
+                        add         al,10
+                        cmp         al,bl
+                        jae         .intstop
+                        sub         al,10
+                        add         al,'A'
+.intwrite               cmp         rdi,rcx
+                        jae         .intstop
                         stosb
+                        jmp         .integloop
 
-.intnodig               nop
-.intdigerr              nop
+
+
+.intstop                nop
+.intwrite               nop
 .decimals               nop
 
 
