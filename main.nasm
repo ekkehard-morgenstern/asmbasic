@@ -6,10 +6,12 @@
                         section     .text
 
                         global      main
+                        extern      init_locale
                         extern      init_tokenizer
                         extern      dump_tokenmap
 
 main                    enter       0,0
+                        call        init_locale
                         call        init_tokenizer
                         call        dump_tokenmap
                         xor         rax,rax

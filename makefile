@@ -18,12 +18,14 @@ all:	asmbasic
 clean:
 	rm asmbasic *.o *.lst
 
-MODULES=main.o xalloc.o tokens.o
+MODULES=main.o locale.o xalloc.o tokens.o
 
 asmbasic: $(MODULES)
 	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lc
 
 main.o: 	main.nasm
+
+locale.o: 	locale.nasm
 
 xalloc.o: 	xalloc.nasm
 
