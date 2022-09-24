@@ -5,8 +5,10 @@
                         cpu         x64
                         bits        64
 
-TOKENPAD_DWORDS         equ         10240
-DIGITBUF_BYTES          equ         1024
+TOKENPAD_BYTES          equ         49152
+DIGITBUF_BYTES          equ         512
+IDENTBUF_BYTES          equ         1024
+STRLITBUF_BYTES         equ         1024
 
 ; token descriptors
                         struc       tokendesc
@@ -61,6 +63,7 @@ TKM_HASHSIZE            equ         1000
                         global      init_tokenizer,dump_tokenmap
                         extern      xalloc,printf
 
+; ---------------------------------------------------------------------------
 
                         ;     [rbp-0x08] - RBX backup
                         ;     [rbp-0x10] - R12 backup
@@ -169,6 +172,8 @@ init_tokenizer          enter       0x30,0
                         leave
                         ret
 
+; ---------------------------------------------------------------------------
+
                         ; rdi - name
                         ; rsi - name length
                         ;       [ebp-0x08] - RBX backup
@@ -211,6 +216,8 @@ computehash             enter       0x10,0
                         mov         rbx,[rbp-0x08]
                         leave
                         ret
+
+; ---------------------------------------------------------------------------
 
                         ; [ebp-0x08] rbx backup
 
@@ -257,6 +264,8 @@ dump_tokenmap           enter       0x20,0
                         leave
                         ret
 
+; ---------------------------------------------------------------------------
+
                         ; The main tokenizer routine.
                         ; NOTE that the input line gets replaced with the
                         ; idealized form to be used during tokenization.
@@ -281,6 +290,139 @@ tokenize                enter       0x20,0
                         leave
                         ret
 
+; ---------------------------------------------------------------------------
+
+                        ; initializes the tokenization process
+                        ; rdi - source text pointer
+                        ; rsi - source text length
+tok_init                enter       0,0
+                        mov         [sourceptr],rdi
+                        add         rsi,rdi
+                        mov         [sourceend],rsi
+                        lea         rdi,[g_tokenpad]
+                        mov         [tokenptr],rdi
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; read a character from the input stream
+                        ; result:
+                        ;   rax - character or -1 for end
+tok_rdch                enter       0,0
+                        mov         rsi,[sourceptr]
+                        cmp         rsi,[sourceend]
+                        jae         .atend
+                        movzx       rax,byte [rsi]
+                        inc         rsi
+                        mov         [sourceptr],rsi
+.term                   mov         [sourcechr],rax
+                        leave
+                        ret
+.atend                  xor         rax,rax
+                        dec         rax
+                        jmp         .term
+
+; ---------------------------------------------------------------------------
+
+                        ; read a unicode code point (utf-8 encoded)
+                        ; from the input stream
+                        ; result:
+                        ;   rax - code point or -1 for end
+tok_rucp                enter 0,0
+
+.nextch                 call        tok_rdch
+                        cmp         rax,-1
+                        je          .term
+
+                        ; check for 1-byte encoding
+                        test        al,0x80     ; msb set?
+                        jz          .term       ; nope, regular char
+
+                        ; check for 2-byte encoding
+                        mov         dl,al
+                        and         dl,0xe0     ; %110xxxxx ?
+                        cmp         dl,0xc0
+                        je          .twobyte
+
+                        ; check for 3-byte encoding
+                        mov         dl,al
+                        and         dl,0xf0     ; %1110xxxx ?
+                        cmp         dl,0xe0
+                        je          .threebyte
+
+                        ; check for 4-byte encoding
+                        mov         dl,al
+                        and         dl,0xf8     ; %11110xxx ?
+                        cmp         dl,0xf0
+                        je          .fourbyte
+
+                        ; not recognized
+                        jmp         .nextch
+
+.term                   mov         [sourceucp],rax
+
+.end                    leave
+                        ret
+
+                        ; %110xxxxx %10xxxxxx
+.twobyte                mov         dl,al
+                        and         dl,0x1f
+                        movzx       rax,dl
+                        mov         [sourceucp],rax
+                        jmp         .lastbyte
+
+                        ; %1110xxxx %10xxxxxx %10xxxxxx
+.threebyte              mov         dl,al
+                        and         dl,0x0f
+                        movzx       rax,dl
+                        mov         [sourceucp],rax
+                        jmp         .secondtolast
+
+                        ; %11110xxx %10xxxxxx %10xxxxxx %10xxxxxx
+.fourbyte               mov         dl,al
+                        and         dl,0x07
+                        movzx       rax,dl
+                        mov         [sourceucp],rax
+
+.thirdtolast            call        tok_rdch
+                        cmp         rax,-1
+                        je          .term
+                        mov         dl,al
+                        and         dl,0xc0     ; %10xxxxxx ?
+                        cmp         dl,0x80
+                        jne         .term
+                        and         al,0x3f
+                        shl         qword [sourceucp],6
+                        or          [sourceucp],al
+
+.secondtolast           call        tok_rdch
+                        cmp         rax,-1
+                        je          .term
+                        mov         dl,al
+                        and         dl,0xc0     ; %10xxxxxx ?
+                        cmp         dl,0x80
+                        jne         .term
+                        and         al,0x3f
+                        shl         qword [sourceucp],6
+                        or          [sourceucp],al
+
+.lastbyte               call        tok_rdch
+                        cmp         rax,-1
+                        je          .term
+                        mov         dl,al
+                        and         dl,0xc0     ; %10xxxxxx ?
+                        cmp         dl,0x80
+                        jne         .term
+                        and         al,0x3f
+                        shl         qword [sourceucp],6
+                        or          [sourceucp],al
+
+                        mov         rax,[sourceucp]
+                        jmp         .end
+
+; ---------------------------------------------------------------------------
+
                         ; SYNOPSIS:
                         ;   tok_main() takes a text line that has been
                         ;   prepared by tok_prepare(). It does the following:
@@ -300,146 +442,18 @@ tokenize                enter       0x20,0
                         ;   - keywords are stored with a 03/... prefix.
                         ;   - spaces are ignored.
                         ;
-                        ; rdi [rbp-0x08] - pointer to text
-                        ; rsi [rbp-0x10] - size of text, in bytes
-                        ;     [rbp-0x18] - rbx backup
+                        ; rdi - pointer to text
+                        ; rsi - size of text, in bytes
                         ;
-tok_main                enter       0x20,0
-                        mov         [rbp-0x08],rdi
-                        mov         [rbp-0x10],rsi
-                        mov         [rbp-0x18],rbx
-                        cld
-                        ; r8 - end pointer
-                        mov         r8,rdi
-                        add         r8,rsi
-                        ; rsi - text pointer
-                        ; rdi - token pad pointer
-                        ; r9  - token pad end pointer
-                        lea         rdi,[g_tokenpad]
-                        lea         r9,[rdi+4*TOKENPAD_DWORDS]
-                        ; read next byte
-.nextbyte               cmp         rsi,r8
-                        jae         .inputend
-                        lodsb
-                        ; check
-                        cmp         al,' '      ; skip spaces
-                        je          .nextbyte
-                        cmp         al,'&'      ; numbers with explicit base
-                        je          .ampersand
-                        cmp         al,'.'      ; decimal without leading digits
-                        je          .dot
-                        cmp         al,'0'      ; leading decimal digits
-                        jb          .notdigit
-                        cmp         al,'9'
-                        ja          .notdigit
-                        jmp         .dodec2
-.notdigit               nop
+tok_main                enter       0,0
+                        call        tok_init
 
-.inputend               nop
-                        ; restore regs and exit
-                        mov         rbx,[rbp-0x18]
+
+
                         leave
                         ret
-.amperr                 cmp         rdi,r9
-                        jae         .inputend
-                        mov         eax,'&'
-                        stosd
-                        jmp         .nextbyte
-                        ; & ...
-                        ; read follow-up byte
-.ampersand              cmp         rsi,r8
-                        jae         .amperr
-                        lodsb
-                        cmp         al,'H'
-                        je          .dohex
-                        cmp         al,'D'
-                        je          .dodec
-                        cmp         al,'O'
-                        je          .dooct
-                        cmp         al,'B'
-                        je          .dobin
-                        ; not one of those
-                        ; rewind
-                        dec         rsi
-                        jmp         .amperr
-.doterr2                dec         rsi
-.doterr                 cmp         rdi,r9
-                        jae         .inputend
-                        mov         eax,'.'
-                        stosd
-                        jmp         .nextbyte
-                        ; a dot: check follow-up byte
-.dot                    cmp         rsi,r8
-                        jae         .doterr
-                        lodsb
-                        cmp         al,'0'
-                        jb          .doterr2
-                        cmp         al,'9'
-                        ja          .doterr2
-                        ; it's a decimal digit
-                        mov         bl,10   ; base 10
-                        mov         r10,rdi ; r10 - backup of rdi
-                        ; store 0.d in digit buffer
-                        lea         rdi,[digitbuf]
-                        lea         rcx,[rdi+DIGITBUF_BYTES]
-                        mov         dl,al
-                        mov         al,'0'
-                        stosb
-                        mov         al,'.'
-                        stosb
-                        mov         al,dl
-                        stosb
-                        jmp         .decimals
-.dohex                  mov         bl,16   ; base 16
-                        jmp         .integral
-.dodec                  mov         bl,10   ; base 10
-                        jmp         .integral
-.dooct                  mov         bl,8    ; base 8
-                        jmp         .integral
-.dobin                  mov         bl,2    ; base 2
-                        jmp         .integral
-                        ; when having a decimal digit in al
-.dodec2                 dec         rsi
-                        mov         bl,10
-                        ; processing an integer
-.integral               lea         rdi,[digitbuf]
-                        lea         rcx,[rdi+DIGITBUF_BYTES]
-.integloop              cmp         rsi,r8
-                        jae         .intstop
-                        lodsb
-                        cmp         al,'0'
-                        jb          .intnodig
-                        cmp         al,'9'
-                        ja          .intnodig
-                        sub         al,'0'
-                        cmp         al,bl
-                        jae         .intstop
-                        add         al,'0'
-                        jmp         .intwrite
-.intnodig               cmp         al,'A'
-                        jb          .intnodig2
-                        cmp         al,'F'
-                        ja          .intnodig2
-                        sub         al,'A'
-                        add         al,10
-                        cmp         al,bl
-                        jae         .intstop
-                        sub         al,10
-                        add         al,'A'
-.intwrite               cmp         rdi,rcx
-                        jae         .intstop
-                        stosb
-                        jmp         .integloop
 
-
-
-.intstop                nop
-.intwrite               nop
-.decimals               nop
-
-
-
-
+; ---------------------------------------------------------------------------
 
                         ; SYNOPSIS:
                         ;   tok_prepare() takes a text line. It goes over all
@@ -523,12 +537,16 @@ tok_prepare             enter       0,0
                         ; done, jump back to scanner
 .quotend                jmp         .scanner
 
+; ---------------------------------------------------------------------------
+
                         ; rdi [rbp-0x08] - address
                         ; rsi [rbp-0x10] - size of encoded text, in bytes
                         ;     [rbp-0x18] - RBX backup
 detokenize              enter       0,0
                         leave
                         ret
+
+; ---------------------------------------------------------------------------
 
 ; read-only data section
 
@@ -690,11 +708,15 @@ tokentbl                db          4,2,"ABS(",0x03,0x00
 tokentbl_size           equ         $-tokentbl
 tokentbl_name           db          7,"default"
 
+; ---------------------------------------------------------------------------
+
 dtm_ixfmt               db          "[%04u]",0
 dtm_namfmt              db          " %-*.*s",0
 dtm_lf                  db          10,0
 
                         align       8,db 0
+
+; ---------------------------------------------------------------------------
 
 ; regular data section
                         section     .data
@@ -704,10 +726,26 @@ firstmapentry           dq          0
                         dq          tokentbl
                         dq          tokentbl_size
 
+; ---------------------------------------------------------------------------
+
 ; block-structured storage section
 
                         section     .bss
 
+sourceptr               resq        1
+sourceend               resq        1
+sourcechr               resq        1
+sourceucp               resq        1
+tokenptr                resq        1
+
 g_tokenmap              resq        tokenmap_size/8
-g_tokenpad              resd        TOKENPAD_DWORDS
-digitbuf                resb        DIGITBUF_BYTES
+g_tokenpad              resq        TOKENPAD_BYTES/8
+tokenend                equ         $-g_tokenpad
+digitbuf                resq        DIGITBUF_BYTES/8
+digitbufend             equ         $-digitbuf
+identbuf                resq        IDENTBUF_BYTES/8
+identbufend             equ         $-identbuf
+strlitbuf               resq        STRLITBUF_BYTES/8
+strlitbufend            equ         $-strlitbuf
+
+; ---------------------------------------------------------------------------
