@@ -77,8 +77,10 @@ init_tokenizer          enter       0x30,0
                         mov         [rbp-0x18],r13
                         mov         [rbp-0x20],r14
                         mov         [rbp-0x28],r15
-                        lea         rbx,[g_tokenmap]
-                        lea         r12,[firstmapentry]
+                        mov         rax,[rel g_tokenmap wrt ..gottpoff]
+                        lea         rbx,[fs:rax]
+                        mov         rax,[rel firstmapentry wrt ..gottpoff]
+                        lea         r12,[fs:rax]
                         mov         [rbx+tkm_first],r12
                         ; clear hash table
                         cld                                 ; forward dir
@@ -225,7 +227,7 @@ dump_tokenmap           enter       0x20,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],r13
-                        lea         rbx,[g_tokenmap]
+                        lea         rbx,[fs:g_tokenmap]
                         ; rbx - tokenmap hash table
                         lea         rbx,[rbx+tkm_hash]
                         xor         r12,r12
@@ -296,130 +298,8 @@ tokenize                enter       0x20,0
                         ; rdi - source text pointer
                         ; rsi - source text length
 tok_init                enter       0,0
-                        mov         [sourceptr],rdi
-                        add         rsi,rdi
-                        mov         [sourceend],rsi
-                        lea         rdi,[g_tokenpad]
-                        mov         [tokenptr],rdi
                         leave
                         ret
-
-; ---------------------------------------------------------------------------
-
-                        ; read a character from the input stream
-                        ; result:
-                        ;   rax - character or -1 for end
-tok_rdch                enter       0,0
-                        mov         rsi,[sourceptr]
-                        cmp         rsi,[sourceend]
-                        jae         .atend
-                        movzx       rax,byte [rsi]
-                        inc         rsi
-                        mov         [sourceptr],rsi
-.term                   mov         [sourcechr],rax
-                        leave
-                        ret
-.atend                  xor         rax,rax
-                        dec         rax
-                        jmp         .term
-
-; ---------------------------------------------------------------------------
-
-                        ; read a unicode code point (utf-8 encoded)
-                        ; from the input stream
-                        ; result:
-                        ;   rax - code point or -1 for end
-tok_rucp                enter 0,0
-
-.nextch                 call        tok_rdch
-                        cmp         rax,-1
-                        je          .term
-
-                        ; check for 1-byte encoding
-                        test        al,0x80     ; msb set?
-                        jz          .term       ; nope, regular char
-
-                        ; check for 2-byte encoding
-                        mov         dl,al
-                        and         dl,0xe0     ; %110xxxxx ?
-                        cmp         dl,0xc0
-                        je          .twobyte
-
-                        ; check for 3-byte encoding
-                        mov         dl,al
-                        and         dl,0xf0     ; %1110xxxx ?
-                        cmp         dl,0xe0
-                        je          .threebyte
-
-                        ; check for 4-byte encoding
-                        mov         dl,al
-                        and         dl,0xf8     ; %11110xxx ?
-                        cmp         dl,0xf0
-                        je          .fourbyte
-
-                        ; not recognized
-                        jmp         .nextch
-
-.term                   mov         [sourceucp],rax
-
-.end                    leave
-                        ret
-
-                        ; %110xxxxx %10xxxxxx
-.twobyte                mov         dl,al
-                        and         dl,0x1f
-                        movzx       rax,dl
-                        mov         [sourceucp],rax
-                        jmp         .lastbyte
-
-                        ; %1110xxxx %10xxxxxx %10xxxxxx
-.threebyte              mov         dl,al
-                        and         dl,0x0f
-                        movzx       rax,dl
-                        mov         [sourceucp],rax
-                        jmp         .secondtolast
-
-                        ; %11110xxx %10xxxxxx %10xxxxxx %10xxxxxx
-.fourbyte               mov         dl,al
-                        and         dl,0x07
-                        movzx       rax,dl
-                        mov         [sourceucp],rax
-
-.thirdtolast            call        tok_rdch
-                        cmp         rax,-1
-                        je          .term
-                        mov         dl,al
-                        and         dl,0xc0     ; %10xxxxxx ?
-                        cmp         dl,0x80
-                        jne         .term
-                        and         al,0x3f
-                        shl         qword [sourceucp],6
-                        or          [sourceucp],al
-
-.secondtolast           call        tok_rdch
-                        cmp         rax,-1
-                        je          .term
-                        mov         dl,al
-                        and         dl,0xc0     ; %10xxxxxx ?
-                        cmp         dl,0x80
-                        jne         .term
-                        and         al,0x3f
-                        shl         qword [sourceucp],6
-                        or          [sourceucp],al
-
-.lastbyte               call        tok_rdch
-                        cmp         rax,-1
-                        je          .term
-                        mov         dl,al
-                        and         dl,0xc0     ; %10xxxxxx ?
-                        cmp         dl,0x80
-                        jne         .term
-                        and         al,0x3f
-                        shl         qword [sourceucp],6
-                        or          [sourceucp],al
-
-                        mov         rax,[sourceucp]
-                        jmp         .end
 
 ; ---------------------------------------------------------------------------
 
@@ -465,77 +345,9 @@ tok_main                enter       0,0
                         ; rdi - address of text line
                         ; rsi - size of text, in bytes
 tok_prepare             enter       0,0
-                        ; set r9 to the beginning of input (save for later)
-                        mov         r9,rdi
-                        ; compute r8 - end of input pointer
-                        mov         r8,rsi
-                        add         r8,rdi
-                        ; make rsi (source) point to the same location as
-                        ; rdi (target)
-                        mov         rsi,rdi
-                        ; clear direction flag (forward)
-                        cld
-                        ; loop body: check against end pointer first
-.scanner                cmp         rsi,r8
-                        jae         .scanend
-                        ; load a byte
-                        lodsb
-                        ; if it's a space or tab, jump to space eliminator
-                        cmp         al,0x20
-                        je          .scanspc
-                        cmp         al,0x09
-                        je          .scanspc
-                        ; if it's a double quote character, ", jump to
-                        ; double quote handler
-                        cmp         al,0x22
-                        je          .dblquot
-                        ; check if it's a lower case letter
-                        cmp         al,0x61     ; 'a'
-                        jb          .noletter
-                        cmp         al,0x7a     ; 'z'
-                        ja          .noletter
-                        ; it is a lowercase letter: turn to upper case
-                        xor         al,0x20
-                        ; store character
-.noletter               stosb
-                        ; continue loop
-                        jmp         .scanner
-                        ; at the end, compute the new size and return it
-.scanend                mov         rax,rdi
-                        sub         rax,r9
+
                         leave
                         ret
-                        ; space scanner
-.scanspc                cmp         rsi,r8      ; beyond input?
-                        jae         .spcend
-                        ; load next byte
-                        lodsb
-                        cmp         al,0x20
-                        je          .scanspc
-                        cmp         al,0x09
-                        je          .scanspc
-                        ; not a space: backpedal
-                        dec         rsi
-                        ; end of whitespace: store a space
-.spcend                 mov         al,0x20
-                        stosb
-                        ; resume with normal operation
-                        jmp         .scanner
-                        ; double quote handler
-                        ; store it
-.dblquot                stosb
-                        ; check for end
-                        cmp         rsi,r8
-                        jae         .quotend
-                        ; load next byte
-                        lodsb
-                        ; if it's not a double quote, keep copying
-                        cmp         al,0x22
-                        jne         .dblquot
-                        ; store closing double quote
-                        stosb
-                        ; done, jump back to scanner
-.quotend                jmp         .scanner
 
 ; ---------------------------------------------------------------------------
 
@@ -718,8 +530,9 @@ dtm_lf                  db          10,0
 
 ; ---------------------------------------------------------------------------
 
-; regular data section
-                        section     .data
+; TLS data section
+                        section     .tdata
+                        global      firstmapentry
 
 firstmapentry           dq          0
                         dq          tokentbl_name
@@ -728,15 +541,10 @@ firstmapentry           dq          0
 
 ; ---------------------------------------------------------------------------
 
-; block-structured storage section
+; TLS block-structured storage section
 
-                        section     .bss
-
-sourceptr               resq        1
-sourceend               resq        1
-sourcechr               resq        1
-sourceucp               resq        1
-tokenptr                resq        1
+                        section     .tbss
+                        global      g_tokenmap
 
 g_tokenmap              resq        tokenmap_size/8
 g_tokenpad              resq        TOKENPAD_BYTES/8

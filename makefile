@@ -7,6 +7,8 @@ ASMOPT=
 LNKOPT=-s
 endif
 
+LNKOPT+= -pthread
+
 .SUFFIXES:	.nasm
 
 .nasm.o:
@@ -18,14 +20,16 @@ all:	asmbasic
 clean:
 	rm asmbasic *.o *.lst
 
-MODULES=main.o locale.o xalloc.o tokens.o
+MODULES=main.o locale.o unicode.o xalloc.o tokens.o
 
 asmbasic: $(MODULES)
-	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lc
+	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lpthread -lc
 
 main.o: 	main.nasm
 
 locale.o: 	locale.nasm
+
+unicode.o: 	unicode.nasm
 
 xalloc.o: 	xalloc.nasm
 
