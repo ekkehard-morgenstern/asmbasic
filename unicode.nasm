@@ -3,6 +3,8 @@
                         cpu         x64
                         bits        64
 
+WCOUT_OVERSHOOT         equ         20  ; room for 4 * 5 bytes of overshoot
+
                         ; cf. /usr/include/x86-64-linux-gnu/bits/types/
                         ; __mbstate_t.h
                         struc       mbstate
@@ -11,18 +13,18 @@
                         endstruc
 
                         section     .text
-                        global      uclinelinit,ucgetcp
-                        extern      mbrtowc
+                        global      uclineininit,ucgetcp,uclineoutinit,ucputcp
+                        extern      mbrtowc,wcrtomb
 
-                        ; SYNOPSIS: uclineinit() initializes a text line
+                        ; SYNOPSIS: uclineininit() initializes a text line
                         ; for processing.
                         ;   rdi - beginning of line in utf-8 format
                         ;   rsi - length of line, in bytes
-uclineinit              enter       0,0
+uclineininit            enter       0,0
                         ; reset wide character state
                         xor         edx,edx
-                        mov         [wcstate+mb_count],edx
-                        mov         [wcstate+mb_value],edx
+                        mov         [wcinstate+mb_count],edx
+                        mov         [wcinstate+mb_value],edx
                         ; init text pointers
                         mov         [wclinein],rdi
                         add         rsi,rdi
@@ -32,7 +34,7 @@ uclineinit              enter       0,0
                         ret
 
                         ; SYNOPSIS ucgetcp() reads one code point from
-                        ; the text line initialized using uclineinit().
+                        ; the text line initialized using uclineininit().
                         ; Output will be in RAX. RAX will be -1 on end of input.
 ucgetcp                 enter       0,0
                         ; rdi - pwc, rsi - s, rdx - n, rcx - ps; cf. mbrtowc(3)
@@ -42,7 +44,7 @@ ucgetcp                 enter       0,0
                         jae         .inputend
                         lea         rdi,[wcchar]
                         sub         rdx,rsi
-                        lea         rcx,[wcstate]
+                        lea         rcx,[wcinstate]
                         call        mbrtowc
                         or          rax,rax
                         jz          .zero       ; a NUL character
@@ -79,18 +81,60 @@ ucgetcp                 enter       0,0
                         jnz         .garbskip
                         ; reset conversion state
                         xor         edx,edx
-                        mov         [wcstate+mb_count],edx
-                        mov         [wcstate+mb_value],edx
+                        mov         [wcinstate+mb_count],edx
+                        mov         [wcinstate+mb_value],edx
                         ; go back to conversion
                         jmp         .resume
 
-; variables in thread-local storage
+                        ; SYNOPSIS: uclineoutinit() initializes a text line
+                        ; for processing.
+                        ;   rdi - beginning of buffer in utf-8 format
+                        ;   rsi - length of buffer, in bytes
+                        ;         (will be reduced by WCOUT_OVERSHOOT bytes)
+uclineoutinit           enter       0,0
+                        ; reset wide character state
+                        xor         edx,edx
+                        mov         [wcoutstate+mb_count],edx
+                        mov         [wcoutstate+mb_value],edx
+                        ; init text pointers
+                        mov         [wclineout],rdi
+                        sub         rsi,WCOUT_OVERSHOOT
+                        add         rsi,rdi
+                        mov         [wclineoutend],rsi
+                        ; done
+                        leave
+                        ret
+
+                        ; SYNOPSIS ucputcp() writes one code point from
+                        ; the text line initialized using uclineoutinit().
+                        ; Parameters:
+                        ;   rdi - character
+                        ; Output:
+                        ;   rax - returns number of bytes in output buffer
+ucputcp                 enter       0,0
+                        mov         rsi,rdi
+                        mov         rdi,[wclineout]
+                        mov         rdx,[wclineoutend]
+                        cmp         rdi,rdx
+                        jae         .end
+                        lea         rdx,[wcoutstate]
+                        call        wcrtomb
+                        cmp         rax,-1          ; invalid wchar
+                        je          .end
+                        add         [wclineout],rax
+.end                    leave
+                        ret
+
+; variables in block-structured storage
 
                         section     .bss
                         global      wcchar
 
 wcchar                  resd        1
                         resd        1
-wcstate                 resd        mbstate_size/4
+wcinstate               resd        mbstate_size/4
 wclinein                resq        1
 wclineinend             resq        1
+wcoutstate              resd        mbstate_size/4
+wclineout               resq        1
+wclineoutend            resq        1

@@ -5,7 +5,8 @@
                         cpu         x64
                         bits        64
 
-TOKENPAD_BYTES          equ         49152
+LINEBUF_BYTES           equ         16384
+TOKENPAD_BYTES          equ         32768
 DIGITBUF_BYTES          equ         512
 IDENTBUF_BYTES          equ         1024
 STRLITBUF_BYTES         equ         1024
@@ -542,9 +543,12 @@ firstmapentry           dq          0
 
                         section     .bss
 
+
 g_tokenmap              resq        tokenmap_size/8
-g_tokenpad              resq        TOKENPAD_BYTES/8
-tokenend                equ         $-g_tokenpad
+linebuf                 resq        LINEBUF_BYTES/8
+linebufend              equ         $-linebuf
+tokenpad                resq        TOKENPAD_BYTES/8
+tokenpadend             equ         $-tokenpad
 digitbuf                resq        DIGITBUF_BYTES/8
 digitbufend             equ         $-digitbuf
 identbuf                resq        IDENTBUF_BYTES/8
