@@ -30,3 +30,4 @@ for TLS in NASM (see NASM manual):
   - use [fs:offset] to access the data
   - link with pthread library (option -pthread on GCC)
 NOTE: Shelved, b/c FS is zero on main() call, how to set FS register correctly?
+      Black magic & Voodoo!

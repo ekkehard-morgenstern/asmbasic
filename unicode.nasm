@@ -56,11 +56,7 @@ ucgetcp                 enter       0,0
                         ; wcchar contains the translated character
                         mov         eax,dword [wcchar]
                         ; restore registers
-.end                    mov         r15,[rbp-0x20]
-                        mov         r14,[rbp-0x18]
-                        mov         r13,[rbp-0x10]
-                        mov         r12,[rbp-0x08]
-                        leave
+.end                    leave
                         ret
                         ; a NUL or L'\0' character: can't read further
                         ; set pointer to end of line and finish
