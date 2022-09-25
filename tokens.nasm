@@ -77,10 +77,8 @@ init_tokenizer          enter       0x30,0
                         mov         [rbp-0x18],r13
                         mov         [rbp-0x20],r14
                         mov         [rbp-0x28],r15
-                        mov         rax,[rel g_tokenmap wrt ..gottpoff]
-                        lea         rbx,[fs:rax]
-                        mov         rax,[rel firstmapentry wrt ..gottpoff]
-                        lea         r12,[fs:rax]
+                        lea         rbx,[g_tokenmap]
+                        lea         r12,[firstmapentry]
                         mov         [rbx+tkm_first],r12
                         ; clear hash table
                         cld                                 ; forward dir
@@ -531,8 +529,7 @@ dtm_lf                  db          10,0
 ; ---------------------------------------------------------------------------
 
 ; TLS data section
-                        section     .tdata
-                        global      firstmapentry
+                        section     .data
 
 firstmapentry           dq          0
                         dq          tokentbl_name
@@ -543,8 +540,7 @@ firstmapentry           dq          0
 
 ; TLS block-structured storage section
 
-                        section     .tbss
-                        global      g_tokenmap
+                        section     .bss
 
 g_tokenmap              resq        tokenmap_size/8
 g_tokenpad              resq        TOKENPAD_BYTES/8

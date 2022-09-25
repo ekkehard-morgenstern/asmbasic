@@ -22,3 +22,10 @@ cf. System V ABI description for x86-84 (Date retrieved: 2022-09-12):
     on the stack.
 
 cf. /usr/include/x86_64-linux-gnu/asm/unistd_64.h for table of syscalls
+
+for TLS in NASM (see NASM manual):
+  - sections .tbss and .tdata
+  - linker creates only _offsets_ into the TLS table accessible with FS
+  - use [rel symbol wrt ..gottpoff] to access the offset
+  - use [fs:offset] to access the data
+  - link with pthread library (option -pthread on GCC)
