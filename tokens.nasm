@@ -63,6 +63,8 @@ TKM_HASHSIZE            equ         1000
 
                         global      init_tokenizer,dump_tokenmap
                         extern      xalloc,printf
+                        extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
+                        extern      wcchar,iswspace,iswlower,towupper
 
 ; ---------------------------------------------------------------------------
 
@@ -344,9 +346,67 @@ tok_main                enter       0,0
                         ; rdi - address of text line
                         ; rsi - size of text, in bytes
 tok_prepare             enter       0,0
-
-                        leave
+                        call        uclineininit
+                        lea         rdi,[linebuf]
+                        lea         rsi,[linebufend]
+                        xor         rax,rax
+                        mov         [linebuflen],rax
+                        sub         rsi,rdi
+                        call        uclineoutinit
+.getcp                  call        ucgetcp
+.checkcp                cmp         rax,-1
+                        je          .end
+                        cmp         rax,'"'
+                        je          .quotes
+                        mov         rdi,rax
+                        call        iswspace
+                        test        eax,eax
+                        jnz         .spaces
+                        xor         rdi,rdi
+                        mov         edi,dword [wcchar]
+                        call        iswlower
+                        jnz         .lcase
+                        xor         rdi,rdi
+                        mov         edi,dword [wcchar]
+.storecp                call        ucputcp
+                        mov         [linebuflen],rax
+                        jmp         .getcp
+.end                    leave
                         ret
+.quotes                 mov         rdi,rax ; store initial '"'
+                        call        ucputcp
+                        mov         [linebuflen],rax
+.qunext                 call        ucgetcp
+                        cmp         rax,-1  ; end?
+                        je          .end
+                        cmp         rax,'"' ; terminating '"'
+                        je          .quend
+                        call        ucputcp ; transfer all others
+                        mov         [linebuflen],rax
+                        jmp         .qunext
+.quend                  call        ucputcp ; store terminating '"'
+                        mov         [linebuflen],rax
+                        jmp         .getcp  ; continue normally
+.spaces                 call        ucgetcp
+                        cmp         rax,-1  ; end?
+                        je          .end
+                        mov         rdi,rax
+                        call        iswspace
+                        test        eax,eax
+                        jnz         .spaces
+                        ; not a space: store ' ' character
+                        mov         rdi,' '
+                        call        ucputcp
+                        mov         [linebuflen],rax
+                        ; get character last read
+                        xor         rax,rax
+                        mov         eax,dword [wcchar]
+                        jmp         .checkcp
+.lcase                  mov         rdi,rax
+                        call        towupper
+                        xor         rdi,rdi
+                        mov         edi,eax
+                        jmp         .storecp
 
 ; ---------------------------------------------------------------------------
 
@@ -547,6 +607,7 @@ firstmapentry           dq          0
 g_tokenmap              resq        tokenmap_size/8
 linebuf                 resq        LINEBUF_BYTES/8
 linebufend              equ         $-linebuf
+linebuflen              resq        1
 tokenpad                resq        TOKENPAD_BYTES/8
 tokenpadend             equ         $-tokenpad
 digitbuf                resq        DIGITBUF_BYTES/8

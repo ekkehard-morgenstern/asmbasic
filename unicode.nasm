@@ -98,6 +98,7 @@ uclineoutinit           enter       0,0
                         mov         [wcoutstate+mb_value],edx
                         ; init text pointers
                         mov         [wclineout],rdi
+                        mov         [wclineoutbeg],rdi
                         sub         rsi,WCOUT_OVERSHOOT
                         add         rsi,rdi
                         mov         [wclineoutend],rsi
@@ -122,7 +123,9 @@ ucputcp                 enter       0,0
                         cmp         rax,-1          ; invalid wchar
                         je          .end
                         add         [wclineout],rax
-.end                    leave
+.end                    mov         rax,[wclineout]
+                        sub         rax,[wclineoutbeg]
+                        leave
                         ret
 
 ; variables in block-structured storage
@@ -138,3 +141,4 @@ wclineinend             resq        1
 wcoutstate              resd        mbstate_size/4
 wclineout               resq        1
 wclineoutend            resq        1
+wclineoutbeg            resq        1
