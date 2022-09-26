@@ -61,7 +61,7 @@ TKM_HASHSIZE            equ         1000
 
                         section     .text
 
-                        global      init_tokenizer,dump_tokenmap
+                        global      init_tokenizer,dump_tokenmap,tokenize
                         extern      xalloc,printf
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         extern      wcchar,iswspace,iswlower,towupper
@@ -228,7 +228,7 @@ dump_tokenmap           enter       0x20,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],r13
-                        lea         rbx,[fs:g_tokenmap]
+                        lea         rbx,[g_tokenmap]
                         ; rbx - tokenmap hash table
                         lea         rbx,[rbx+tkm_hash]
                         xor         r12,r12
@@ -275,21 +275,13 @@ dump_tokenmap           enter       0x20,0
                         ; The tokenizer returns the length of this line.
                         ;
                         ;
-                        ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - size of text, in bytes
-                        ;     [rbp-0x18] - RBX backup
+                        ; rdi - address
+                        ; rsi - size of text, in bytes
                         ;
-                        ; output: rax - length of cleaned up input
-tokenize                enter       0x20,0
-                        mov         [rbp-0x08],rdi
-                        mov         [rbp-0x10],rsi
+tokenize                enter       0,0
                         ; call preparation code
                         call        tok_prepare
-                        ; store new length
-                        mov         [rbp-0x10],rax
-
-                        ; return length of idealized input
-                        mov         rax,[rbp-0x10]
+                        call        tok_dumplinebuf
                         leave
                         ret
 
@@ -337,6 +329,22 @@ tok_main                enter       0,0
 ; ---------------------------------------------------------------------------
 
                         ; SYNOPSIS:
+                        ;   tok_dumplinebuf() outputs the linebuffer for
+                        ;   debugging purposes
+
+tok_dumplinebuf         enter       0,0
+                        lea         rdi,[dlb_fmt]
+                        mov         rsi,[linebuflen]
+                        mov         rdx,rsi
+                        lea         rcx,[linebuf]
+                        xor         al,al
+                        call        printf
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; SYNOPSIS:
                         ;   tok_prepare() takes a text line. It goes over all
                         ;   characters in the line, and reduces whitespace to
                         ;   single spaces, except within quotes ("..."). It also
@@ -348,10 +356,9 @@ tok_main                enter       0,0
 tok_prepare             enter       0,0
                         call        uclineininit
                         lea         rdi,[linebuf]
-                        lea         rsi,[linebufend]
+                        mov         rsi,linebufsize
                         xor         rax,rax
                         mov         [linebuflen],rax
-                        sub         rsi,rdi
                         call        uclineoutinit
 .getcp                  call        ucgetcp
 .checkcp                cmp         rax,-1
@@ -381,10 +388,12 @@ tok_prepare             enter       0,0
                         je          .end
                         cmp         rax,'"' ; terminating '"'
                         je          .quend
+                        mov         rdi,rax
                         call        ucputcp ; transfer all others
                         mov         [linebuflen],rax
                         jmp         .qunext
-.quend                  call        ucputcp ; store terminating '"'
+.quend                  mov         rdi,rax
+                        call        ucputcp ; store terminating '"'
                         mov         [linebuflen],rax
                         jmp         .getcp  ; continue normally
 .spaces                 call        ucgetcp
@@ -402,7 +411,8 @@ tok_prepare             enter       0,0
                         xor         rax,rax
                         mov         eax,dword [wcchar]
                         jmp         .checkcp
-.lcase                  mov         rdi,rax
+.lcase                  xor         rdi,rdi
+                        mov         edi,dword [wcchar]
                         call        towupper
                         xor         rdi,rdi
                         mov         edi,eax
@@ -585,6 +595,9 @@ dtm_ixfmt               db          "[%04u]",0
 dtm_namfmt              db          " %-*.*s",0
 dtm_lf                  db          10,0
 
+dlb_fmt                 db          "line buf: <<%-*.*s>>",10,0
+
+
                         align       8,db 0
 
 ; ---------------------------------------------------------------------------
@@ -606,15 +619,15 @@ firstmapentry           dq          0
 
 g_tokenmap              resq        tokenmap_size/8
 linebuf                 resq        LINEBUF_BYTES/8
-linebufend              equ         $-linebuf
+linebufsize             equ         $-linebuf
 linebuflen              resq        1
 tokenpad                resq        TOKENPAD_BYTES/8
-tokenpadend             equ         $-tokenpad
+tokenpadsize            equ         $-tokenpad
 digitbuf                resq        DIGITBUF_BYTES/8
-digitbufend             equ         $-digitbuf
+digitbufsize            equ         $-digitbuf
 identbuf                resq        IDENTBUF_BYTES/8
-identbufend             equ         $-identbuf
+identbufsize            equ         $-identbuf
 strlitbuf               resq        STRLITBUF_BYTES/8
-strlitbufend            equ         $-strlitbuf
+strlitbufsize           equ         $-strlitbuf
 
 ; ---------------------------------------------------------------------------
