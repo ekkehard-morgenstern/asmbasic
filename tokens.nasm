@@ -282,6 +282,9 @@ tokenize                enter       0,0
                         ; call preparation code
                         call        tok_prepare
                         call        tok_dumplinebuf
+                        lea         rdi,[linebuf]
+                        mov         rsi,[linebuflen]
+                        call        tok_main
                         leave
                         ret
 
@@ -291,6 +294,41 @@ tokenize                enter       0,0
                         ; rdi - source text pointer
                         ; rsi - source text length
 tok_init                enter       0,0
+                        call        uclineininit
+                        mov         qword [sourceputback],-1
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; retrieve a character (code point) from the input
+                        ; (first call tok_init() to initialize input stream)
+                        ; if there was a put back character, retrieve it,
+                        ; otherwise get a new one
+tok_getch               enter       0,0
+                        mov         rax,[sourceputback]
+                        cmp         rax,-1
+                        je          .skip
+                        mov         qword [sourceputback],-1
+                        jmp         .end
+.skip                   call        ucgetcp
+.end                    leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; read a number with specified-out number base
+                        ; &H... &D... &O... &B...
+                        ; assumes that '&' has already been read
+                        ; if the character after & is invalid, it is put
+                        ; back, and the '&' is stored as a verbatim token.
+                        ; If the base is valid, but followed by invalid chars,
+                        ; number 0 is stored.
+tok_rdamp               enter       0,0
+                        call        tok_getch
+                        cmp         rax,-1
+                        ;je          .no_followup
+
                         leave
                         ret
 
@@ -621,6 +659,7 @@ g_tokenmap              resq        tokenmap_size/8
 linebuf                 resq        LINEBUF_BYTES/8
 linebufsize             equ         $-linebuf
 linebuflen              resq        1
+sourceputback           resq        1
 tokenpad                resq        TOKENPAD_BYTES/8
 tokenpadsize            equ         $-tokenpad
 digitbuf                resq        DIGITBUF_BYTES/8
