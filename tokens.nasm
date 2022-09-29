@@ -359,16 +359,24 @@ tok_rdamp               enter       0,0
                         ;   [rbp-0x10] - r12 backup
                         ;   [rbp-0x18] - base (rdi) backup (temporary)
                         ;   [rbp-0x20] - base shift (r12) backup (temporary)
-tok_rdnum               enter       0x40,0
+                        ;   [rbp-0x28] - int part of result (temporary)
+                        ;   [rbp-0x30] - fract part of result (temporary)
+                        ;   [rbp-0x38] - exp part of result (temporary)
+                        ;   [rbp-0x40] - fract divider (temporary)
+                        ;   [rbp-0x48] - fract multiplier (temporary)
+tok_rdnum               enter       0x50,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],rdi  ; base
+                        mov         [rbp-0x40],r13
                         xor         rax,rax
                         mov         [rbp-0x20],rax  ; shift
                         mov         [rbp-0x28],rax  ; int part of result
                         mov         [rbp-0x30],rax  ; fract part of result
                         mov         [rbp-0x38],rax  ; exp part of result
                         mov         rbx,rdi
+                        xor         r12,r12
+                        mov         [rbp-0x40],rbx  ; fract divider (1/)base
                         cmp         bl,10
                         je          .intloop
                         ; compute log2(base) as shift value (non-dec only)
@@ -376,6 +384,7 @@ tok_rdnum               enter       0x40,0
                         fild        qword [rbp-0x18]    ; base
                         fyl2x
                         fistp       qword [rbp-0x20]    ; shift
+                        mov         r12,[rbp-0x20]
                         ;
 .intloop                call        tok_getch
                         cmp         rax,-1
@@ -384,8 +393,78 @@ tok_rdnum               enter       0x40,0
                         je          .numdone
                         cmp         rax,'.'
                         je          .fractpart
+                        cmp         rax,'0'
+                        jb          .chkexp
+                        cmp         rax,'9'
+                        ja          .chkexp
+                        sub         al,'0'
+                        jmp         .dodig
+.chkexp                 cmp         bl,16
+                        je          .chkexphex
+                        cmp         al,'E'
+                        je          .doexp
+                        jmp         .numdone
+.chkexphex              cmp         al,'G'
+                        je          .doexp
+                        cmp         al,'A'
+                        jmp         .numdone
+                        cmp         al,'F'
+                        jmp         .numdone
+                        sub         al,'A'
+                        add         al,10
+.dodig                  test        r12,r12
+                        jz          .dodigmul
+                        mov         rcx,r12
+                        sal         qword [rbp-0x28],cl
+                        add         [rbp-0x28],rax
+                        jmp         .intloop
+.dodigmul               mov         rdx, qword [rbp-0x28]
+                        imul        rdx,rbx
+                        add         rdx,rax
+                        mov         [rbp-0x28],rdx
+                        jmp         .intloop
+.fractpart              call        tok_getch
+                        cmp         rax,-1
+                        je          .numdone
+                        cmp         rax,' '
+                        je          .numdone
+                        cmp         rax,'0'
+                        jb          .chkexp2
+                        cmp         rax,'9'
+                        ja          .chkexp2
+                        sub         al,'0'
+                        jmp         .dodig2
+.chkexp2                cmp         bl,16
+                        je          .chkexphex2
+                        cmp         al,'E'
+                        je          .doexp
+                        jmp         .numdone
+.chkexphex2             cmp         al,'G'
+                        je          .doexp
+                        cmp         al,'A'
+                        jmp         .numdone
+                        cmp         al,'F'
+                        jmp         .numdone
+                        sub         al,'A'
+                        add         al,10
+                        ; compute frac=frac+(1/divider)*rax
+.dodig2                 fld         qword [rbp-0x30]
+                        fld1                    ; 1/(base^n)
+                        fild        qword [rbp-0x40]
+                        fdivp
+                        mov         qword [rbp-0x48],rax
+                        fild        qword [rbp-0x48]
+                        fmulp
+                        faddp
+                        fstp        qword [rbp-0x30]
+                        ; advance divider
+                        ; divider=divider*base
+                        mov         rdx,[rbp-0x40]
+                        imul        rdx,rbx
+                        mov         [rbp-0x40],rdx
+                        jmp         .fractpart
 
-.fractpart              nop
+.doexp:
 
 .numdone                mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
