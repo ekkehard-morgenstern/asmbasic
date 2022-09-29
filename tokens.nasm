@@ -327,8 +327,75 @@ tok_getch               enter       0,0
 tok_rdamp               enter       0,0
                         call        tok_getch
                         cmp         rax,-1
-                        ;je          .no_followup
+                        je          .no_followup
+                        cmp         rax,'H'
+                        je          .beg_hex
+                        cmp         rax,'D'
+                        je          .beg_dec
+                        cmp         rax,'O'
+                        je          .beg_oct
+                        cmp         rax,'B'
+                        je          .beg_bin
+                        mov         [sourceputback],rax
+.no_followup            mov         rdi,'&'
+                        call        tok_putb
+.end                    leave
+                        ret
+.beg_hex                mov         rdi,16
+                        jmp         .beg_read
+.beg_dec                mov         rdi,10
+                        jmp         .beg_read
+.beg_oct                mov         rdi,8
+                        jmp         .beg_read
+.beg_bin                mov         rdi,2
+.beg_read               call        tok_rdnum
+                        jmp         .end
 
+; ---------------------------------------------------------------------------
+
+                        ; read a number with a specified number base
+                        ; rdi - base
+                        ;   [rbp-0x08] - rbx backup
+                        ;   [rbp-0x10] - r12 backup
+                        ;   [rbp-0x18] - base (rdi) backup (temporary)
+                        ;   [rbp-0x20] - base shift (r12) backup (temporary)
+tok_rdnum               enter       0x40,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],rdi  ; base
+                        xor         rax,rax
+                        mov         [rbp-0x20],rax  ; shift
+                        mov         [rbp-0x28],rax  ; int part of result
+                        mov         [rbp-0x30],rax  ; fract part of result
+                        mov         [rbp-0x38],rax  ; exp part of result
+                        mov         rbx,rdi
+                        cmp         bl,10
+                        je          .intloop
+                        ; compute log2(base) as shift value (non-dec only)
+                        fld1
+                        fild        qword [rbp-0x18]    ; base
+                        fyl2x
+                        fistp       qword [rbp-0x20]    ; shift
+                        ;
+.intloop                call        tok_getch
+                        cmp         rax,-1
+                        je          .numdone
+                        cmp         rax,' '
+                        je          .numdone
+                        cmp         rax,'.'
+                        je          .fractpart
+
+.fractpart              nop
+
+.numdone                mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; put token byte in rdi to token buffer
+tok_putb                enter       0,0
                         leave
                         ret
 
