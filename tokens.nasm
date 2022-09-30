@@ -357,53 +357,48 @@ tok_rdamp               enter       0,0
                         ; rdi - base
                         ;   [rbp-0x08] - rbx backup
                         ;   [rbp-0x10] - r12 backup
-                        ;   [rbp-0x18] - base (rdi) backup (temporary)
-                        ;   [rbp-0x20] - base shift (r12) backup (temporary)
-                        ;   [rbp-0x28] - int part of result (temporary)
-                        ;   [rbp-0x30] - fract part of result (temporary)
+                        ;   [rbp-0x18] - r13 backup
+                        ;   [rbp-0x20] - r14 backup
                         ;   [rbp-0x38] - exp part of result (temporary)
-                        ;   [rbp-0x40] - fract divider (temporary)
-                        ;   [rbp-0x48] - fract multiplier (temporary)
+                        ;   [rbp-0x40] - unused
+                        ;   [rbp-0x48] - unused
                         ;   [rbp-0x50] - max. unshifted value (temporary)
-                        ;   [rbp-0x58] - overflow flag (temporary)
+                        ;   [rbp-0x51] - unused
+                        ;   [rbp-0x52] - unused
+                        ;   [rbp-0x54] - exp of integ part (word, temporary)
+                        ;   [rbp-0x56] - num of digits aft pt (word, temporary)
+                        ;   [rbp-0x57] - flag digits after point (temporary)
+                        ;   [rbp-0x58] - overflow flag (byte, temporary)
 tok_rdnum               enter       0x60,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
-                        mov         [rbp-0x18],rdi  ; base
-                        mov         [rbp-0x40],r13
+                        mov         [rbp-0x18],r13
+                        mov         [rbp-0x20],r14
                         xor         rax,rax
-                        mov         [rbp-0x20],rax  ; shift
-                        mov         [rbp-0x28],rax  ; int part of result
-                        mov         [rbp-0x30],rax  ; fract part of result
                         mov         [rbp-0x38],rax  ; exp part of result
-                        mov         [rbp-0x50],rax  ; max unshifted value
-                        mov         [rbp-0x58],rax  ; overflow flag
+                        mov         [rbp-0x58],rax  ; flags (see above)
                         mov         rbx,rdi
-                        xor         r12,r12
-                        mov         [rbp-0x40],rbx  ; fract divider (1/)base
+                        xor         r12,r12     ; shift
+                        xor         r13,r13     ; integral part of result
+                        xor         r14,r14     ; maximum unshifted value
                         cmp         bl,10
                         je          .intloop
                         ; compute log2(base) as shift value (non-dec only)
-                        fld1
-                        fild        qword [rbp-0x18]    ; base
-                        fyl2x
-                        fistp       qword [rbp-0x20]    ; shift
-                        mov         r12,[rbp-0x20]
+                        bsf         r12,rbx
                         mov         rcx,r12
-                        ; compute ((2^63)>>baseshift)-1
-                        inc         rax
-                        ror         rax,1
-                        shr         rax,cl
-                        dec         rax
-                        mov         [rbp-0x50],rax  ; max unshifted value
+                        ; compute ((2^63)>>baseshift)-1 (max unshifted val)
+                        inc         r14
+                        ror         r14,1
+                        shr         r14,cl
+                        dec         r14
                         ;
 .intloop                call        tok_getch
                         cmp         rax,-1
                         je          .numdone
                         cmp         rax,' '
-                        je          .numdone
+                        je          .numdonepb
                         cmp         rax,'.'
-                        je          .fractpart
+                        je          .fractloop
                         cmp         rax,'0'
                         jb          .chkexp
                         cmp         rax,'9'
@@ -414,44 +409,48 @@ tok_rdnum               enter       0x60,0
                         je          .chkexphex
                         cmp         al,'E'
                         je          .doexp
-                        jmp         .numdone
+                        jmp         .numdonepb
 .chkexphex              cmp         al,'G'
                         je          .doexp
+                        cmp         al,'P'
+                        je          .dopexp
                         cmp         al,'A'
-                        jmp         .numdone
+                        jmp         .numdonepb
                         cmp         al,'F'
-                        jmp         .numdone
+                        jmp         .numdonepb
                         sub         al,'A'
                         add         al,10
+                        jmp         .dodig
+.intexpinc              inc         word [rbp-0x54] ; inc int exp
+                        jmp         .intloop
 .dodig                  cmp         byte [rbp-0x58],0   ; overflow?
-                        jne         .intloop            ; skip digit
+                        jne         .intexpinc          ; skip digit
                         test        r12,r12
                         jz          .dodigmul
                         ; base 2,8,16: shift and add
                         ; first check if overflow would occur
-                        mov         rdx,[rbp-0x28]
-                        cmp         rdx,[rbp-0x50]
+                        cmp         r13,r14
                         seta        byte [rbp-0x58]
-                        ja          .intloop
+                        ja          .intexpinc
                         mov         rcx,r12
-                        sal         qword [rbp-0x28],cl
-                        add         [rbp-0x28],rax
+                        sal         r13,cl
+                        add         r13,rax
                         jmp         .intloop
-.dodigmul               mov         rdx, qword [rbp-0x28]
+                        ; base 10: multiply and add
+.dodigmul               mov         rdx,r13
                         imul        rdx,rbx
                         seto        byte [rbp-0x58]
-                        jo          .intloop
+                        jo          .intexpinc
                         add         rdx,rax
                         seto        byte [rbp-0x58]
-                        jo          .intloop
-                        mov         [rbp-0x28],rdx
+                        jo          .intexpinc
+                        mov         r13,rdx
                         jmp         .intloop
-.fractpart              mov         byte [rbp-0x58],0   ; clr ovf
 .fractloop              call        tok_getch
                         cmp         rax,-1
                         je          .numdone
                         cmp         rax,' '
-                        je          .numdone
+                        je          .numdonepb
                         cmp         rax,'0'
                         jb          .chkexp2
                         cmp         rax,'9'
@@ -462,47 +461,60 @@ tok_rdnum               enter       0x60,0
                         je          .chkexphex2
                         cmp         al,'E'
                         je          .doexp
-                        jmp         .numdone
+                        jmp         .numdonepb
 .chkexphex2             cmp         al,'G'
                         je          .doexp
                         cmp         al,'P'
                         je          .dopexp
                         cmp         al,'A'
-                        jmp         .numdone
+                        jmp         .numdonepb
                         cmp         al,'F'
-                        jmp         .numdone
+                        jmp         .numdonepb
                         sub         al,'A'
                         add         al,10
-                        ; compute frac=frac+(1/divider)*rax
 .dodig2                 cmp         byte [rbp-0x58],0       ; overflow?
                         jne         .fractloop              ; skip digits
-                        fld         qword [rbp-0x30]
-                        fld1                    ; 1/(base^n)
-                        fild        qword [rbp-0x40]
-                        fdivp
-                        mov         qword [rbp-0x48],rax
-                        fild        qword [rbp-0x48]
-                        fmulp
-                        faddp
-                        fstp        qword [rbp-0x30]
-                        ; advance divider
-                        ; divider=divider*base
-                        mov         rdx,[rbp-0x40]
+                        test        r12,r12
+                        jz          .dodigmul2
+                        ; base 2,8,16: shift and add
+                        ; first check if overflow would occur
+                        cmp         r13,r14
+                        seta        byte [rbp-0x58]
+                        ja          .fractloop
+                        mov         rcx,r12
+                        sal         r13,cl
+                        add         r13,rax
+                        jmp         .fractadd
+                        ; base 10: multiply and add
+.dodigmul2              mov         rdx,r13
                         imul        rdx,rbx
                         seto        byte [rbp-0x58]
                         jo          .fractloop
-                        mov         [rbp-0x40],rdx
+                        add         rdx,rax
+                        seto        byte [rbp-0x58]
+                        jo          .fractloop
+                        mov         r13,rdx
+                        ; remember we added a fraction digit
+.fractadd               inc         word [rbp-0x56]     ; # of digits
+                        mov         byte [rbp-0x57],1   ; fract flag
                         jmp         .fractloop
+
+
+
                         ; exponent E/G[+-]exp (based)
 .doexp:
 
                         ; exponent P[+-]powerof2
 .dopexp:
 
-.numdone                mov         r12,[rbp-0x10]
+.numdone                mov         r14,[rbp-0x20]
+                        mov         r13,[rbp-0x18]
+                        mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
                         ret
+.numdonepb              mov         [sourceputback],rax
+                        jmp         .numdone
 
 ; ---------------------------------------------------------------------------
 
