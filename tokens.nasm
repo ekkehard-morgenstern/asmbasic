@@ -465,6 +465,8 @@ tok_rdnum               enter       0x60,0
                         jmp         .numdone
 .chkexphex2             cmp         al,'G'
                         je          .doexp
+                        cmp         al,'P'
+                        je          .dopexp
                         cmp         al,'A'
                         jmp         .numdone
                         cmp         al,'F'
@@ -491,8 +493,11 @@ tok_rdnum               enter       0x60,0
                         jo          .fractloop
                         mov         [rbp-0x40],rdx
                         jmp         .fractloop
-
+                        ; exponent E/G[+-]exp (based)
 .doexp:
+
+                        ; exponent P[+-]powerof2
+.dopexp:
 
 .numdone                mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
