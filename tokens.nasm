@@ -366,7 +366,8 @@ tok_rdamp               enter       0,0
                         ;   [rbp-0x20] - r14 backup
                         ;   [rbp-0x38] - exp part of result (temporary)
                         ;   [rbp-0x40] - calculation (temporary)
-                        ;   [rbp-0x48] - unused
+                        ;   [rbp-0x47] - unused
+                        ;   [rbp-0x48] - exponent sign (byte, temporary)
                         ;   [rbp-0x50] - max. unshifted value (temporary)
                         ;   [rbp-0x52] - fpu control word (temporary)
                         ;   [rbp-0x54] - exp of integ part (word, temporary)
@@ -520,18 +521,97 @@ tok_rdnum               enter       0x60,0
                         mov         byte [rbp-0x57],1   ; fract flag
                         jmp         .fractloop
 ; reading of exponent
+;       in E/G mode, the exponent is expected in current number base.
+;           in base 2,8,16 mode, the exponent is shifted to the left
+;           at the end to turn it into a power of 2 exponent
+;       in P mode, the exponent is expected in decimal form.
+;           the exponent is a literal power of 2 exponent
 ;
-;
-;
-;
-
-
                         ; exponent E/G[+-]exp (based)
-.doexp:
-
+.doexp                  call        tok_getch
+                        cmp         rax,-1
+                        je          .expdone
+                        cmp         rax,' '
+                        je          .expdonepb
+                        cmp         rax,'+'
+                        jne         .notplus3
+                        mov         byte [rbp-0x48],0
+                        jmp         .doexp
+.notplus3               cmp         rax,'-'
+                        jne         .notminus3
+                        mov         byte [rbp-0x48],1
+                        jmp         .doexp
+.notminus3              cmp         rax,'0'
+                        jb          .chkexp3
+                        cmp         rax,'9'
+                        ja          .chkexp3
+                        sub         al,'0'
+                        jmp         .dodig3
+.chkexp3                cmp         al,'A'
+                        jmp         .expdonepb
+                        cmp         al,'F'
+                        jmp         .expdonepb
+                        sub         al,'A'
+                        add         al,10
+.dodig3                 cmp         al,bl
+                        jae         .expdone
+                        test        r12,r12
+                        jz          .dodigmul3
+                        ; base 2,8,16: shift and add
+                        mov         rcx,r12
+                        sal         qword [rbp-0x38],cl
+                        add         qword [rbp-0x38],rax
+                        jmp         .doexp
+                        ; base 10: multiply and add
+.dodigmul               mov         rdx,[rbp-0x38]
+                        imul        rdx,rbx
+                        add         rdx,rax
+                        mov         [rbp-0x38],rdx
+                        jmp         .doexp
+                        ; exponent done
+.expdone                cmp         byte [rbp-0x48],0
+                        je          .expplus
+                        neg         qword [rbp-0x38]
+                        ; in non-decimal mode, premultiply the exponent
+                        ; by shifting it to the left by digit base shift
+.expplus                cmp         bl,10
+                        je          .numdone
+                        mov         rcx,r12
+                        sal         qword [rbp-0x38],cl
+                        jmp         .numdone
+.expdonepb              mov         [sourceputback],rax
+                        jmp         .expdone
                         ; exponent P[+-]powerof2
-.dopexp:
-
+                        ;   exponent is always base 10
+.dopexp                 call        tok_getch
+                        cmp         rax,-1
+                        je          .pexpdone
+                        cmp         rax,' '
+                        je          .pexpdonepb
+                        cmp         rax,'+'
+                        jne         .notplus4
+                        mov         byte [rbp-0x48],0
+                        jmp         .dopexp
+.notplus4               cmp         rax,'-'
+                        jne         .notminus4
+                        mov         byte [rbp-0x48],1
+                        jmp         .dopexp
+.notminus4              cmp         rax,'0'
+                        jb          .numdonepb
+                        cmp         rax,'9'
+                        ja          .numdonepb
+                        sub         al,'0'
+                        mov         rdx,[rbp-0x38]
+                        imul        rdx,10
+                        add         rdx,rax
+                        mov         [rbp-0x38],rdx
+                        jmp         .dopexp
+.pexpdone               cmp         byte [rbp-0x48],0
+                        je          .numdone
+                        neg         qword [rbp-0x38]
+                        jmp         .numdone
+.pexpdonepb             mov         [sourceputback],rax
+                        jmp         .pexpdone
                         ; finished; check if we have something non-zero
 .numdone                test        r13,r13
                         setz        al
