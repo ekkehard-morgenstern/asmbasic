@@ -533,17 +533,68 @@ tok_rdnum               enter       0x60,0
                         ; fixup exponent before normalization
                         cmp         bl,10
                         je          .decfixexp
+; in non-decimal mode, we don't need the FPU to construct a floating-point
+; value.
+                        ; first, get int(logbase(integerpart))
+                        ; get highest bit that is set
+                        ; this is also the 2^n exponent
+                        bsr         rax,r13
 ; 16^n = 2^(4*n)
 ;  8^n = 2^(3*n)
 ;  2^n = 2^(1*n)
 ; thus, the exponent needs only be shifted by the base shift
+                        mov         rcx,r12
                         ; check for overflow
                         cmp         byte [rbp-0x58],0       ; overflow?
                         jne         .no_ovf2
-
-
-
-.no_ovf2:
+                        ; yes: add additional powers of (base)
+                        movzx       rdx,word [rbp-0x54]
+                        shl         rdx,cl
+                        add         rax,rdx
+                        jmp         .nondecexpdone  ; cannot have fraction
+                        ; check for fraction
+.no_ovf2                cmp         byte [rbp-0x57],0
+                        je          .nondecexpdone  ; no fraction
+                        ; subtract powers of (base)
+                        movzx       rdx,word [rbp-0x56]
+                        shl         rdx,cl
+                        sub         rax,rdx
+                        ; now add the user-supplied exponent
+                        ; NOTE that in nondecimal mode, the user-supplied
+                        ; exponent must already have been premultiplied
+                        ; with the base in E/G mode, but not in P mode
+.nondecexpdone          add         rax,[rbp-0x38]
+                        ; now check for maxima / minima and limit the exponent
+                        ; accordingly.
+                        cmp         rax,-1022
+                        jl          .zeroresult
+                        cmp         rax,1023
+                        jg          .infresult
+                        ; get biased exponent
+                        add         rax,1023
+                        ; shift into position
+                        shl         rax,52
+                        ; get highest bit of integral part
+                        bsr         rdx,r13
+                        cmp         dl,52
+                        jb          .mant2left
+                        ja          .mant2right
+                        jmp         .mantdone
+                        ; mantissa needs to be shifted to the left into pos
+.mant2left              mov         cl,52
+                        sub         cl,dl
+                        shl         r13,cl
+                        jmp         .mantdone
+                        ; mantissa needs to be shifted to the right into pos
+.mant2right             mov         cl,dl
+                        sub         cl,52
+                        shr         r13,cl
+                        ; get shifted mantissa and mask off unnecessary bits
+.mantdone               mov         rdx,0x000fffffffffffff
+                        and         rdx,r13
+                        ; combine
+                        or          rax,rdx
+                        ; finished
                         jmp         .done
                         ; regular fixup for base 10
                         ; set rounding mode to round down
@@ -612,6 +663,8 @@ tok_rdnum               enter       0x60,0
 .numdonepb              mov         [sourceputback],rax
                         jmp         .numdone
 .zeroresult             xor         rax,rax
+                        jmp         .done
+.infresult              mov         rax,0x7ff0000000000000  ; +inf
                         jmp         .done
 
 ; ---------------------------------------------------------------------------
