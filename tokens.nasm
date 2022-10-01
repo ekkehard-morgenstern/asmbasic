@@ -458,16 +458,16 @@ tok_rdnum               enter       0x60,0
                         cmp         al,'P'
                         je          .dopexp
                         cmp         al,'A'
-                        jmp         .numdonepb
+                        jb          .numdonepb
                         cmp         al,'F'
-                        jmp         .numdonepb
+                        ja          .numdonepb
                         sub         al,'A'
                         add         al,10
                         jmp         .dodig
 .intexpinc              inc         word [rbp-0x54] ; inc int exp
                         jmp         .intloop
 .dodig                  cmp         al,bl
-                        jae         .numdone
+                        jae         .numdonepb
                         cmp         byte [rbp-0x58],0   ; overflow?
                         jne         .intexpinc          ; skip digit
                         test        r12,r12
@@ -519,13 +519,13 @@ tok_rdnum               enter       0x60,0
                         cmp         al,'P'
                         je          .dopexp
                         cmp         al,'A'
-                        jmp         .numdonepb
+                        jb          .numdonepb
                         cmp         al,'F'
-                        jmp         .numdonepb
+                        ja          .numdonepb
                         sub         al,'A'
                         add         al,10
 .dodig2                 cmp         al,bl
-                        jae         .numdone
+                        jae         .numdonepb
                         cmp         byte [rbp-0x58],0       ; overflow?
                         jne         .fractloop              ; skip digits
                         test        r12,r12
@@ -580,13 +580,13 @@ tok_rdnum               enter       0x60,0
                         sub         al,'0'
                         jmp         .dodig3
 .chkexp3                cmp         al,'A'
-                        jmp         .expdonepb
+                        jb          .expdonepb
                         cmp         al,'F'
-                        jmp         .expdonepb
+                        ja          .expdonepb
                         sub         al,'A'
                         add         al,10
 .dodig3                 cmp         al,bl
-                        jae         .expdone
+                        jae         .expdonepb
                         test        r12,r12
                         jz          .dodigmul3
                         ; base 2,8,16: shift and add
@@ -605,11 +605,12 @@ tok_rdnum               enter       0x60,0
                         je          .expplus
                         neg         qword [rbp-0x38]
                         ; in non-decimal mode, premultiply the exponent
-                        ; by shifting it to the left by digit base shift
+                        ; by multiplying it with the base shift
 .expplus                cmp         bl,10
                         je          .numdone
-                        mov         rcx,r12
-                        sal         qword [rbp-0x38],cl
+                        mov         rdx,[rbp-0x38]
+                        imul        rdx,r12
+                        mov         [rbp-0x38],rdx
                         jmp         .numdone
 .expdonepb              mov         [sourceputback],rax
                         jmp         .expdone
@@ -672,14 +673,14 @@ tok_rdnum               enter       0x60,0
 ; 16^n = 2^(4*n)
 ;  8^n = 2^(3*n)
 ;  2^n = 2^(1*n)
-; thus, the exponent needs only be shifted by the base shift
+; thus, the exponent needs only be multiplied by the base shift
                         mov         rcx,r12
                         ; check for overflow
                         cmp         byte [rbp-0x58],0       ; overflow?
                         je          .no_ovf2
                         ; yes: add additional powers of (base)
                         movzx       rdx,word [rbp-0x54]
-                        shl         rdx,cl
+                        imul        rdx,rcx
                         add         rax,rdx
                         jmp         .nondecexpdone  ; cannot have fraction
                         ; check for fraction
@@ -687,7 +688,7 @@ tok_rdnum               enter       0x60,0
                         je          .nondecexpdone  ; no fraction
                         ; subtract powers of (base)
                         movzx       rdx,word [rbp-0x56]
-                        shl         rdx,cl
+                        imul        rdx,rcx
                         sub         rax,rdx
                         ; now add the user-supplied exponent
                         ; NOTE that in nondecimal mode, the user-supplied
