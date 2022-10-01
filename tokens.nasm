@@ -354,7 +354,12 @@ tok_rdamp               enter       0,0
 ; ---------------------------------------------------------------------------
 
                         ; read a number with a specified number base
-                        ; rdi - base
+                        ; input:
+                        ;   rdi - base
+                        ; output:
+                        ;   rax - IEEE double-precision binary floating-point
+                        ;
+                        ; local variables:
                         ;   [rbp-0x08] - rbx backup
                         ;   [rbp-0x10] - r12 backup
                         ;   [rbp-0x18] - r13 backup
@@ -528,6 +533,10 @@ tok_rdnum               enter       0x60,0
                         ; fixup exponent before normalization
                         cmp         bl,10
                         je          .decfixexp
+
+
+
+
                         jmp         .done
                         ; regular fixup for base 10
                         ; set rounding mode to round down
@@ -595,7 +604,8 @@ tok_rdnum               enter       0x60,0
                         ret
 .numdonepb              mov         [sourceputback],rax
                         jmp         .numdone
-.zeroresult             nop
+.zeroresult             xor         rax,rax
+                        jmp         .done
 
 ; ---------------------------------------------------------------------------
 
