@@ -620,7 +620,7 @@ tok_rdnum               enter       0x60,0
                         jmp         .pexpdone
                         ; finished; check if we have something non-zero
 .numdone                test        r13,r13
-                        setz        al
+                        setnz       al
                         or          al,[rbp-0x57]
                         jz          .zeroresult
 ; exponent fixup and final number computations:
