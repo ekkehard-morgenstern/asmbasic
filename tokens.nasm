@@ -372,7 +372,7 @@ tok_rdamp               enter       0,0
                         ;   [rbp-0x20] - r14 backup
                         ;   [rbp-0x38] - exp part of result (temporary)
                         ;   [rbp-0x40] - calculation (temporary)
-                        ;   [rbp-0x47] - unused
+                        ;   [rbp-0x47] - exponent 'P' mode (byte, temporary)
                         ;   [rbp-0x48] - exponent sign (byte, temporary)
                         ;   [rbp-0x50] - max. unshifted value (temporary)
                         ;   [rbp-0x52] - fpu control word (temporary)
@@ -387,6 +387,7 @@ tok_rdnum               enter       0x60,0
                         mov         [rbp-0x20],r14
                         xor         rax,rax
                         mov         [rbp-0x38],rax  ; exp part of result
+                        mov         [rbp-0x48],rax  ; flags (see above)
                         mov         [rbp-0x58],rax  ; flags (see above)
                         mov         rbx,rdi
                         xor         r12,r12     ; shift
@@ -612,7 +613,8 @@ tok_rdnum               enter       0x60,0
                         add         rdx,rax
                         mov         [rbp-0x38],rdx
                         jmp         .dopexp
-.pexpdone               cmp         byte [rbp-0x48],0
+.pexpdone               mov         byte [rbp-0x47],1   ; 'P' mode
+                        cmp         byte [rbp-0x48],0   ; neg exp?
                         je          .numdone
                         neg         qword [rbp-0x38]
                         jmp         .numdone
@@ -710,6 +712,7 @@ tok_rdnum               enter       0x60,0
                         mov         [rbp-0x52],ax
                         fldcw       word [rbp-0x52]
                         mov         [rbp-0x52],dx   ; safekeep ctrl backup
+                        xor         rax,rax
                         ; check for overflow of integral part
                         cmp         byte [rbp-0x58],0       ; overflow?
                         je          .no_ovf                 ; nope
@@ -725,20 +728,37 @@ tok_rdnum               enter       0x60,0
 .no_frac                add         rax,[rbp-0x38]
                         ; compute final number
                         ; result = intpart * 10^exp
-                        mov         [rbp-0x40],rax
+                        mov         [rbp-0x40],rax  ; exp
                         ; compute 2^(exp*log2(10))
                         fild        qword [rbp-0x40]
-                        fldl2t
-                        fmulp
-                        fld1
+                        cmp         byte [rbp-0x47],0   ; 'P' mode
+                        jne         .skiplog2
+                        fldl2t                  ; log2(10) constant
+                        fmulp                   ; * exp
+.skiplog2               fld1
                         fld         st1     ; save int part for scale
-.loop_prem              fprem               ; n=fmod(log2(10),1)
-                        fstsw   ax
-                        test    ax,0x0400
-                        jnz     .loop_prem
+; at this point, the FPU stack should look like this:
+;   st2     log2(10)*exp -OR- exp (only int part will be used for scale)
+;   st1     1
+;   st0     log2(10)*exp -OR- exp
+.loop_prem              fprem               ; n=fmod(log2(10)*exp,1)
+                        fstsw       ax
+                        test        ax,0x0400
+                        jnz         .loop_prem
+; at this point, the FPU stack should look like this:
+;   st2     log2(10)*exp -OR- exp (only int part will be used for scale)
+;   st1     1
+;   st0     n=fmod(log2(10)*exp -OR- exp,1) (fraction of log2(10)*exp -OR- exp)
+; (the reason for doing fmod() was that f2xm1 only takes -1..+1 args)
                         f2xm1               ; (2^n-1)+1
                         faddp
+; at this point, the FPU stack should look like this:
+;   st1     log2(10)*exp -OR- exp (only int part will be used for scale)
+;   st0     (2^fmod(log2(10)*exp -OR- exp,1)-1)+1
+; fscale takes the int part of st1 and adds it to the exponent of st0,
+; effectively resulting in 2^(exp*log2(10))
                         fscale
+                        ; swap result up, and remove temporary values
                         fxch        st1
                         ffree       st0
                         fincstp
