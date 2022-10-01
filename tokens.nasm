@@ -429,6 +429,8 @@ tok_rdnum               enter       0x60,0
                         je          .chkexphex
                         cmp         al,'E'
                         je          .doexp
+                        cmp         al,'P'
+                        je          .dopexp
                         jmp         .numdonepb
 .chkexphex              cmp         al,'G'
                         je          .doexp
@@ -488,6 +490,8 @@ tok_rdnum               enter       0x60,0
                         je          .chkexphex2
                         cmp         al,'E'
                         je          .doexp
+                        cmp         al,'P'
+                        je          .dopexp
                         jmp         .numdonepb
 .chkexphex2             cmp         al,'G'
                         je          .doexp
