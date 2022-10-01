@@ -533,10 +533,17 @@ tok_rdnum               enter       0x60,0
                         ; fixup exponent before normalization
                         cmp         bl,10
                         je          .decfixexp
+; 16^n = 2^(4*n)
+;  8^n = 2^(3*n)
+;  2^n = 2^(1*n)
+; thus, the exponent needs only be shifted by the base shift
+                        ; check for overflow
+                        cmp         byte [rbp-0x58],0       ; overflow?
+                        jne         .no_ovf2
 
 
 
-
+.no_ovf2:
                         jmp         .done
                         ; regular fixup for base 10
                         ; set rounding mode to round down
