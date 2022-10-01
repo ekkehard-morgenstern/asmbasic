@@ -750,17 +750,21 @@ tok_rdnum               enter       0x60,0
                         movzx       rax,word [rbp-0x56]
                         neg         rax
                         ; finally, add user-supplied exponent
-.no_frac                add         rax,[rbp-0x38]
+.no_frac                cmp         byte [rbp-0x47],0   ; 'P' mode
+                        jne         .skipusr1           ; yes->
+                        add         rax,[rbp-0x38]
                         ; compute final number
                         ; result = intpart * 10^exp
-                        mov         [rbp-0x40],rax  ; exp
+.skipusr1               mov         [rbp-0x40],rax  ; exp
                         ; compute 2^(exp*log2(10))
                         fild        qword [rbp-0x40]
-                        cmp         byte [rbp-0x47],0   ; 'P' mode
-                        jne         .skiplog2
                         fldl2t                  ; log2(10) constant
                         fmulp                   ; * exp
-.skiplog2               fld1
+                        cmp         byte [rbp-0x47],0   ; 'P' mode
+                        je          .skipusr2           ; no->
+                        fild        qword [rbp-0x38]    ; + pexp
+                        faddp
+.skipusr2               fld1
                         fld         st1     ; save int part for scale
 ; at this point, the FPU stack should look like this:
 ;   st2     log2(10)*exp -OR- exp (only int part will be used for scale)
