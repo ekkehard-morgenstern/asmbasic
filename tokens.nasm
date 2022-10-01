@@ -630,9 +630,9 @@ tok_rdnum               enter       0x60,0
 ;
 ; examples:
 ; - regular value with integral part (and fractional part)
-;       1234.56         int:123456, frac:2, 1.23456 * 10^3
+;       1234.56         int:123456, frac:2, 123456 * 10^-2
 ; - overshot value with integral part plus invisible exponent
-;       1234[00]        int:1234, extra:2, 1.234 * 10^5
+;       1234[00]        int:1234, extra:2, 1234 * 10^2
                         ; fixup exponent before normalization
                         cmp         bl,10
                         je          .decfixexp
@@ -649,7 +649,7 @@ tok_rdnum               enter       0x60,0
                         mov         rcx,r12
                         ; check for overflow
                         cmp         byte [rbp-0x58],0       ; overflow?
-                        jne         .no_ovf2
+                        je          .no_ovf2
                         ; yes: add additional powers of (base)
                         movzx       rdx,word [rbp-0x54]
                         shl         rdx,cl
@@ -710,42 +710,38 @@ tok_rdnum               enter       0x60,0
                         mov         [rbp-0x52],ax
                         fldcw       word [rbp-0x52]
                         mov         [rbp-0x52],dx   ; safekeep ctrl backup
-                        ; compute int(log10(integralpart)) to get power of 10
-                        mov         [rbp-0x40],r13
-                        fld1
-                        fild        qword [rbp-0x40]
-                        fyl2x       ; 1*log2(integralpart)
-                        fldl2t      ; /log2(10)
-                        fdivp
-                        fistp       qword [rbp-0x40]
-                        mov         rax,[rbp-0x40]
                         ; check for overflow of integral part
                         cmp         byte [rbp-0x58],0       ; overflow?
-                        jne         .no_ovf                 ; nope
+                        je          .no_ovf                 ; nope
                         ; yes: add additional powers of 10
-                        movzx       rdx,word [rbp-0x54]
-                        add         rax,rdx
+                        movzx       rax,word [rbp-0x54]
                         jmp         .no_frac    ; cannot have fraction
                         ; no: check for fraction, subtract powers of 10
 .no_ovf                 cmp         byte [rbp-0x57],0
                         je          .no_frac
-                        movzx       rdx,word [rbp-0x56]
-                        sub         rax,rdx
+                        movzx       rax,word [rbp-0x56]
+                        neg         rax
                         ; finally, add user-supplied exponent
 .no_frac                add         rax,[rbp-0x38]
                         ; compute final number
-                        ; result = intpart * 10^exp =
-                        ;   intpart * ((2^(exp*log2(10))-1)+1)
+                        ; result = intpart * 10^exp
                         mov         [rbp-0x40],rax
-                        ; compute exp*log2(10)
+                        ; compute 2^(exp*log2(10))
                         fild        qword [rbp-0x40]
                         fldl2t
                         fmulp
-                        ; compute 2^n-1
-                        f2xm1
-                        ; add 1
                         fld1
+                        fld         st1     ; save int part for scale
+.loop_prem              fprem               ; n=fmod(log2(10),1)
+                        fstsw   ax
+                        test    ax,0x0400
+                        jnz     .loop_prem
+                        f2xm1               ; (2^n-1)+1
                         faddp
+                        fscale
+                        fxch        st1
+                        ffree       st0
+                        fincstp
                         ; multiply with intpart
                         mov         [rbp-0x40],r13
                         fild        qword [rbp-0x40]
