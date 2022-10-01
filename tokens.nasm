@@ -360,11 +360,10 @@ tok_rdamp               enter       0,0
                         ;   [rbp-0x18] - r13 backup
                         ;   [rbp-0x20] - r14 backup
                         ;   [rbp-0x38] - exp part of result (temporary)
-                        ;   [rbp-0x40] - unused
+                        ;   [rbp-0x40] - calculation (temporary)
                         ;   [rbp-0x48] - unused
                         ;   [rbp-0x50] - max. unshifted value (temporary)
-                        ;   [rbp-0x51] - unused
-                        ;   [rbp-0x52] - unused
+                        ;   [rbp-0x52] - fpu control word (temporary)
                         ;   [rbp-0x54] - exp of integ part (word, temporary)
                         ;   [rbp-0x56] - num of digits aft pt (word, temporary)
                         ;   [rbp-0x57] - flag digits after point (temporary)
@@ -423,7 +422,9 @@ tok_rdnum               enter       0x60,0
                         jmp         .dodig
 .intexpinc              inc         word [rbp-0x54] ; inc int exp
                         jmp         .intloop
-.dodig                  cmp         byte [rbp-0x58],0   ; overflow?
+.dodig                  cmp         al,bl
+                        jae         .numdone
+                        cmp         byte [rbp-0x58],0   ; overflow?
                         jne         .intexpinc          ; skip digit
                         test        r12,r12
                         jz          .dodigmul
@@ -472,7 +473,9 @@ tok_rdnum               enter       0x60,0
                         jmp         .numdonepb
                         sub         al,'A'
                         add         al,10
-.dodig2                 cmp         byte [rbp-0x58],0       ; overflow?
+.dodig2                 cmp         al,bl
+                        jae         .numdone
+                        cmp         byte [rbp-0x58],0       ; overflow?
                         jne         .fractloop              ; skip digits
                         test        r12,r12
                         jz          .dodigmul2
@@ -499,6 +502,11 @@ tok_rdnum               enter       0x60,0
                         mov         byte [rbp-0x57],1   ; fract flag
                         jmp         .fractloop
 
+;
+;
+;
+;
+;
 
 
                         ; exponent E/G[+-]exp (based)
@@ -507,7 +515,79 @@ tok_rdnum               enter       0x60,0
                         ; exponent P[+-]powerof2
 .dopexp:
 
-.numdone                mov         r14,[rbp-0x20]
+                        ; finished; check if we have something non-zero
+.numdone                test        r13,r13
+                        setz        al
+                        or          al,[rbp-0x57]
+                        jz          .zeroresult
+; examples:
+; - regular value with integral part (and fractional part)
+;       1234.56         int:123456, frac:2, 1.23456 * 10^3
+; - overshot value with integral part plus invisible exponent
+;       1234[00]        int:1234, extra:2, 1.234 * 10^5
+                        ; fixup exponent before normalization
+                        cmp         bl,10
+                        je          .decfixexp
+                        jmp         .done
+                        ; regular fixup for base 10
+                        ; set rounding mode to round down
+.decfixexp              fclex
+                        fstcw       word [rbp-0x52]
+                        mov         dx,[rbp-0x52]   ; dx ctrl backup
+                        mov         ax,dx
+                        and         ax,0xf0c0
+                        or          ax,0x0f3f   ; xcpt off, hi prec, rnd2z
+                        mov         [rbp-0x52],ax
+                        fldcw       word [rbp-0x52]
+                        mov         [rbp-0x52],dx   ; safekeep ctrl backup
+                        ; compute int(log10(integralpart)) to get power of 10
+                        mov         [rbp-0x40],r13
+                        fld1
+                        fild        qword [rbp-0x40]
+                        fyl2x       ; 1*log2(integralpart)
+                        fldl2t      ; /log2(10)
+                        fdivp
+                        fistp       qword [rbp-0x40]
+                        mov         rax,[rbp-0x40]
+                        ; check for overflow of integral part
+                        cmp         byte [rbp-0x58],0       ; overflow?
+                        jne         .no_ovf                 ; nope
+                        ; yes: add additional powers of 10
+                        movzx       rdx,word [rbp-0x54]
+                        add         rax,rdx
+                        jmp         .no_frac    ; cannot have fraction
+                        ; no: check for fraction, subtract powers of 10
+.no_ovf                 cmp         byte [rbp-0x57],0
+                        je          .no_frac
+                        movzx       rdx,word [rbp-0x56]
+                        sub         rax,rdx
+                        ; finally, add user-supplied exponent
+.no_frac                add         rax,[rbp-0x38]
+                        ; compute final number
+                        ; result = intpart * 10^exp =
+                        ;   intpart * ((2^(exp*log2(10))-1)+1)
+                        mov         [rbp-0x40],rax
+                        ; compute exp*log2(10)
+                        fild        qword [rbp-0x40]
+                        fldl2t
+                        fmulp
+                        ; compute 2^n-1
+                        f2xm1
+                        ; add 1
+                        fld1
+                        faddp
+                        ; multiply with intpart
+                        mov         [rbp-0x40],r13
+                        fild        qword [rbp-0x40]
+                        fmulp
+                        ; done
+                        fstp        qword [rbp-0x40]
+                        ; restore FPU settings
+                        fclex
+                        fldcw       word [rbp-0x52]
+                        ; get return value
+                        mov         rax,[rbp-0x40]
+.done                   mov         r14,[rbp-0x20]
                         mov         r13,[rbp-0x18]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
@@ -515,6 +595,7 @@ tok_rdnum               enter       0x60,0
                         ret
 .numdonepb              mov         [sourceputback],rax
                         jmp         .numdone
+.zeroresult             nop
 
 ; ---------------------------------------------------------------------------
 
