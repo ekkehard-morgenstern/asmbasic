@@ -385,6 +385,11 @@ tok_rdnum               enter       0x60,0
                         xor         r12,r12     ; shift
                         xor         r13,r13     ; integral part of result
                         xor         r14,r14     ; maximum unshifted value
+; base 10 vs base 2,8,16:
+; in base 10 mode, digits are added using multiplication and adding,
+; and the final result is calculated using the FPU.
+; in base 2,8,16 mode, digits are added using shifting and adding,
+; and the final result is calculated using the integer ALU of the CPU.
                         cmp         bl,10
                         je          .intloop
                         ; compute log2(base) as shift value (non-dec only)
@@ -395,7 +400,10 @@ tok_rdnum               enter       0x60,0
                         ror         r14,1
                         shr         r14,cl
                         dec         r14
-                        ;
+; reading of integral part:
+; reads digits and adds them to the right of the integral value.
+; if the number would overflow, invisible 0 digits are added by
+; incrementing the projected exponent.
 .intloop                call        tok_getch
                         cmp         rax,-1
                         je          .numdone
@@ -452,6 +460,11 @@ tok_rdnum               enter       0x60,0
                         jo          .intexpinc
                         mov         r13,rdx
                         jmp         .intloop
+; reading of fraction:
+;       the dot has already been read, continue to read digits.
+;       digits are added to the integral part, if possible, and ignored if not.
+;       if a digit was added, the fractional digit counter is incremented,
+;       which is later on used to compute the final exponent.
 .fractloop              call        tok_getch
                         cmp         rax,-1
                         je          .numdone
@@ -506,8 +519,7 @@ tok_rdnum               enter       0x60,0
 .fractadd               inc         word [rbp-0x56]     ; # of digits
                         mov         byte [rbp-0x57],1   ; fract flag
                         jmp         .fractloop
-
-;
+; reading of exponent
 ;
 ;
 ;
@@ -525,6 +537,11 @@ tok_rdnum               enter       0x60,0
                         setz        al
                         or          al,[rbp-0x57]
                         jz          .zeroresult
+; exponent fixup and final number computations:
+; the exponent is calculated using overflow, fraction and user-supplied value,
+; and then the final number is computed from the integral part and the fixed-up
+; exponent.
+;
 ; examples:
 ; - regular value with integral part (and fractional part)
 ;       1234.56         int:123456, frac:2, 1.23456 * 10^3
