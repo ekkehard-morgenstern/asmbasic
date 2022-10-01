@@ -353,9 +353,8 @@ tok_rdamp               enter       0,0
                         lea         rdi,[rdnum_fmt]
                         mov         rsi,rax
                         movq        xmm0,rax
-                        xor         al,al
+                        mov         al,1
                         call        printf
-                        emms
                         jmp         .end
 
 ; ---------------------------------------------------------------------------
