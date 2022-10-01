@@ -349,6 +349,13 @@ tok_rdamp               enter       0,0
                         jmp         .beg_read
 .beg_bin                mov         rdi,2
 .beg_read               call        tok_rdnum
+                        ; TEST: call printf to debug number
+                        lea         rdi,[rdnum_fmt]
+                        mov         rsi,rax
+                        movq        xmm0,rax
+                        xor         al,al
+                        call        printf
+                        emms
                         jmp         .end
 
 ; ---------------------------------------------------------------------------
@@ -563,7 +570,7 @@ tok_rdnum               enter       0x60,0
                         add         qword [rbp-0x38],rax
                         jmp         .doexp
                         ; base 10: multiply and add
-.dodigmul               mov         rdx,[rbp-0x38]
+.dodigmul3              mov         rdx,[rbp-0x38]
                         imul        rdx,rbx
                         add         rdx,rax
                         mov         [rbp-0x38],rdx
@@ -797,6 +804,8 @@ tok_putb                enter       0,0
                         ;
 tok_main                enter       0,0
                         call        tok_init
+                        ; test: read and print based number
+                        call        tok_rdamp
 
 
 
@@ -1073,7 +1082,7 @@ dtm_namfmt              db          " %-*.*s",0
 dtm_lf                  db          10,0
 
 dlb_fmt                 db          "line buf: <<%-*.*s>>",10,0
-
+rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 
                         align       8,db 0
 
