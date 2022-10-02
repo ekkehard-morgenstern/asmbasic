@@ -357,6 +357,7 @@ tok_putb                enter       0,0
                         ;     &D (optional) introduces decimal mode.
                         ;     &O introduces octal mode.
                         ;     &B introduces binary mode.
+                        ;     decimal digits are supported in all number bases.
                         ;     exponent is written either in E/G or P form
                         ;     (E/G uses b^n exponent written in selected number
                         ;     base, while P uses 2^n exponent
