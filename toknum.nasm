@@ -514,6 +514,16 @@ tok_rdnum               enter       0x60,0
 
 ; ---------------------------------------------------------------------------
 
+                        ; Write number to Unicode output buffer
+                        ;
+                        ; rdi - IEEE double precision floating-point
+                        ; rsi - base (2,8,10,16)
+detok_wrnum             enter       0,0
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
                         section     .rodata
 
 rdnum_fmt               db          "number: 0x%016Lx %g",10,0
