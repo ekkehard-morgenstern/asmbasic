@@ -341,6 +341,7 @@ tok_getch               enter       0,0
 ; ---------------------------------------------------------------------------
 
                         ; put token byte in rdi to token buffer
+                        ; TBD
 tok_putb                enter       0,0
                         leave
                         ret
@@ -356,12 +357,10 @@ tok_putb                enter       0,0
                         ;     &D (optional) introduces decimal mode.
                         ;     &O introduces octal mode.
                         ;     &B introduces binary mode.
-                        ;     The digits are stored into a either a bit pattern
-                        ;     (hex/oct/bin) or a BCD pattern (dec). The location
-                        ;     or absence of the decimal point is noted, as is
-                        ;     the value of the exponent, and the number of
-                        ;     digits. Then the floating-point value is
-                        ;     constructed.
+                        ;     exponent is written either in E/G or P form
+                        ;     (E/G uses b^n exponent written in selected number
+                        ;     base, while P uses 2^n exponent
+                        ;     written in decimal)
                         ;   - identifiers are stored with 02 <len> prefix.
                         ;   - keywords are stored with a 03/... prefix.
                         ;   - spaces are ignored.
