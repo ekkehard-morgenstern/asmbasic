@@ -40,7 +40,7 @@ all:	asmbasic
 clean:
 	rm asmbasic *.o *.lst
 
-MODULES=main.o locale.o unicode.o xalloc.o tokens.o
+MODULES=main.o locale.o unicode.o xalloc.o tokens.o toknum.o
 
 asmbasic: $(MODULES)
 	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lc
@@ -54,3 +54,5 @@ unicode.o: 	unicode.nasm
 xalloc.o: 	xalloc.nasm
 
 tokens.o: 	tokens.nasm
+
+toknum.o: 	toknum.nasm
