@@ -518,9 +518,69 @@ tok_rdnum               enter       0x60,0
                         ;
                         ; rdi - IEEE double precision floating-point
                         ; rsi - base (2,8,10,16)
-detok_wrnum             enter       0,0
-                        leave
+                        ;
+                        ; local variables:
+                        ;   [rbp-0x06] small int temporary (word)
+                        ;   [rbp-0x08] FPU config backup (word)
+                        ;
+detok_wrnum             enter       0x10,0
+
+                        ; clear sign (must be processed by caller)
+                        mov         rdx,0x7fffffffffffffff
+                        and         rdi,rdx
+                        ; check for common special values
+                        cmp         rdi,0x0000000000000000
+                        je          .zero
+                        mov         rdx,0x7ff0000000000000
+                        cmp         rdi,rdx
+                        je          .inf
+                        mov         rax,rdi
+                        and         rax,rdx
+                        cmp         rdi,rdx
+                        je          .nan
+
+
+                        cmp         rsi,10
+                        je          .base10
+
+
+                        jmp         .done
+
+                        ; for base 10, first initialize the FPU to use
+                        ; round-towards-zero
+.base10                 fclex
+                        fstcw       word [rbp-0x08]
+                        mov         dx,[rbp-0x08]   ; dx ctrl backup
+                        mov         ax,dx
+                        and         ax,0xf0c0
+                        or          ax,0x0f3f   ; xcpt off, hi prec, rnd2z
+                        mov         [rbp-0x08],ax
+                        fldcw       word [rbp-0x08]
+                        mov         [rbp-0x08],dx   ; safekeep ctrl backup
+                        ; first, convert the exponent into base 10
+                        ; exp10 = exp2 * log10(2)
+
+                        ;   extract exp2
+                        mov         rax,rdi
+                        shr         rax,52
+                        and         ax,0x07ff
+                        sub         ax,1023
+                        ;   multiply with log10(2)
+                        mov         word [rbp-0x06],ax
+                        fild        word [rbp-0x06]
+                        fldlg2      ; log10(2)
+                        fmulp
+
+
+
+                        ; restore FPU settings
+                        fclex
+                        fldcw       word [rbp-0x52]
+.done                   leave
                         ret
+.zero:
+.inf:
+.nan:
 
 ; ---------------------------------------------------------------------------
 
