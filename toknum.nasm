@@ -28,9 +28,9 @@
 
                         section     .text
 
-                        global      tok_rdamp,tok_rdnum
+                        global      tok_rdamp,tok_rdnum,detok_wrnum
                         extern      tok_getch,tok_putb,sourceputback
-                        extern      printf
+                        extern      printf,ucputcp
 
 ; ---------------------------------------------------------------------------
 
@@ -41,7 +41,7 @@
                         ; back, and the '&' is stored as a verbatim token.
                         ; If the base is valid, but followed by invalid chars,
                         ; number 0 is stored.
-tok_rdamp               enter       0,0
+tok_rdamp               enter       0x10,0
                         call        tok_getch
                         cmp         rax,-1
                         je          .no_followup
@@ -67,11 +67,17 @@ tok_rdamp               enter       0,0
 .beg_bin                mov         rdi,2
 .beg_read               call        tok_rdnum
                         ; TEST: call printf to debug number
+                        mov         [rbp-0x08],rax
                         lea         rdi,[rdnum_fmt]
                         mov         rsi,rax
                         movq        xmm0,rax
                         mov         al,1
                         call        printf
+                        ; TEST: call detok_wrnum on the number to see if it
+                        ; can be detokenized
+                        mov         rdi,[rbp-0x08]
+                        mov         rsi,10  ; need to test base 10 code
+                        call        detok_wrnum
                         jmp         .end
 
 ; ---------------------------------------------------------------------------
@@ -522,8 +528,13 @@ tok_rdnum               enter       0x60,0
                         ; local variables:
                         ;   [rbp-0x06] small int temporary (word)
                         ;   [rbp-0x08] FPU config backup (word)
+                        ;   [rbp-0x10] R12 backup
+                        ;   [rbp-0x18] RDI (parameter) backup
+                        ;   [rbp-0x20] test: result significand
                         ;
-detok_wrnum             enter       0x10,0
+detok_wrnum             enter       0x30,0
+                        mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],rdi
 
                         ; clear sign (must be processed by caller)
                         mov         rdx,0x7fffffffffffffff
@@ -557,35 +568,116 @@ detok_wrnum             enter       0x10,0
                         mov         [rbp-0x08],ax
                         fldcw       word [rbp-0x08]
                         mov         [rbp-0x08],dx   ; safekeep ctrl backup
+
                         ; first, convert the exponent into base 10
                         ; exp10 = exp2 * log10(2)
-
-                        ;   extract exp2
-                        mov         rax,rdi
-                        shr         rax,52
-                        and         ax,0x07ff
-                        sub         ax,1023
-                        ;   multiply with log10(2)
-                        mov         word [rbp-0x06],ax
-                        fild        word [rbp-0x06]
+                        ;   extract exponent and significand
+                        fld         qword [rbp-0x18]
+                        fxtract
+                        ; st1 - exponent
+                        ; st0 - significand
+                        fxch
+                        ; st1 - significand
+                        ; st0 - exponent
+                        ;   multiply exp2 with log10(2)
                         fldlg2      ; log10(2)
                         fmulp
-
-
-
+                        ; st1 - significand
+                        ; st0 - exp10 (exp2 * log10(2))
+                        fld         st0
+                        ; st2 - significand
+                        ; st1 - exp10 (exp2 * log10(2))
+                        ; st0 - exp10 (exp2 * log10(2))
+                        frndint
+                        fist        word [rbp-0x06] ; store int of exp10
+                        fsubp       st1,st0
+                        ; st1 - significand
+                        ; st0 - fraction of exp10
+                        ;   convert exp10 fraction back to exp2
+                        fldlg2      ; log10(2)
+                        fdivp
+                        ; st1 - significand
+                        ; st0 - fraction of exp10, in exp2 form
+                        fld1
+                        fld         st1     ; save int part for scale
+                        ; st3 - significand
+                        ; st2 - fraction of exp10, in exp2 form
+                        ; st1 - 1
+                        ; st0 - fraction of exp10, in exp2 form
+.loop_prem              fprem               ; n=fmod(exp2,1)
+                        fstsw       ax
+                        test        ax,0x0400
+                        jnz         .loop_prem
+                        ; st3 - significand
+                        ; st2 - fraction of exp10, in exp2 form
+                        ; st1 - 1
+                        ; st0 - n=fmod(exp2,1)
+                        ; (the reason for doing fmod() was that f2xm1 only
+                        ;  takes -1..+1 args)
+                        f2xm1               ; (2^n-1)+1
+                        faddp
+                        ; st2 - significand
+                        ; st1 - fraction of exp10, in exp2 form
+                        ; st0 - n=2^fmod(exp2,1)
+                        ; (the reason for doing fmod() was that f2xm1 only
+                        ;  takes -1..+1 args)
+                        ; fscale takes the int part of st1 and adds it to the
+                        ; exponent of st0, effectively resulting in 2^n
+                        ; (i.e. 2^(fmod(exp2,1)+int(exp2)))
+                        fscale
+                        ; st2 - significand
+                        ; st1 - fraction of exp10, in exp2 form
+                        ; st0 - n=2^exp2
+                        ; swap result up, and remove temporary values
+                        fxch        st1
+                        ffree       st0
+                        fincstp
+                        ; st1 - significand
+                        ; st0 - n=2^exp2
+                        ; finally, multiply to get the base10 significand
+                        fmulp
+                        ; store result for printing
+                        fstp        qword [rbp-0x20]
                         ; restore FPU settings
                         fclex
-                        fldcw       word [rbp-0x52]
-.done                   leave
+                        fldcw       word [rbp-0x08]
+                        ; print result
+                        lea         rdi,[wrnum_fmt]
+                        movq        xmm0,[rbp-0x20]
+                        movsx       rsi,word [rbp-0x06]
+                        mov         al,1
+                        call        printf
+                        ;
+.done                   mov         r12,[rbp-0x10]
+                        leave
                         ret
-.zero:
-.inf:
-.nan:
+
+.outfixed               xor         rax,rax
+                        mov         al,[r12]
+                        test        rax,rax
+                        jz          .done
+                        mov         rdi,rax
+                        call        ucputcp
+                        inc         r12
+                        jmp         .outfixed
+
+.zero                   lea         r12,[fixed_zero]
+                        jmp         .outfixed
+
+.inf                    lea         r12,[fixed_inf]
+                        jmp         .outfixed
+
+.nan                    lea         r12,[fixed_nan]
+                        jmp         .outfixed
 
 ; ---------------------------------------------------------------------------
 
                         section     .rodata
 
 rdnum_fmt               db          "number: 0x%016Lx %g",10,0
+fixed_zero              db          "0",0
+fixed_inf               db          "INF",0
+fixed_nan               db          "NAN",0
+wrnum_fmt               db          "man10 = %g, exp10 = %d",10,0
 
                         align       8,db 0
