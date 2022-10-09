@@ -534,10 +534,12 @@ tok_rdnum               enter       0x60,0
                         ;   [rbp-0x18] RDI (parameter) backup
                         ;   [rbp-0x20] test: result significand
                         ;   [rbp-0x30] test: result bcd
+                        ;   [rbp-0x38] R13 backup
                         ;
-detok_wrnum             enter       0x30,0
+detok_wrnum             enter       0x40,0
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],rdi
+                        mov         [rbp-0x38],r13
 
                         ; clear sign (must be processed by caller)
                         mov         rdx,0x7fffffffffffffff
@@ -673,7 +675,7 @@ detok_wrnum             enter       0x30,0
                         xor     cx,cx
                         ; multiplication loop
 .upscaleloop            mov     ax,word [rbp-0x04]
-                        cmp     ax,18
+                        cmp     ax,17
                         jge     .upscaleend
                         ; check if fmod(n,1)=0
                         fld     st0
@@ -718,7 +720,7 @@ detok_wrnum             enter       0x30,0
                         fldcw       word [rbp-0x08]
                         mov         [rbp-0x08],dx   ; safekeep ctrl backup
                         ; round number to nearest integer
-                        frndint
+                        ; frndint
                         ; store result as BCD
                         fld         st0
                         fbstp       [rbp-0x30]
@@ -735,8 +737,24 @@ detok_wrnum             enter       0x30,0
                         movsx       rdx,word [rbp-0x06]
                         mov         al,1
                         call        printf
+                        ; print hexdump of BCD number
+                        lea         r12,[rbp-0x30]
+                        lea         r13,[r12+10]
+.hexloop                cmp         r12,r13
+                        jae         .hexend
+                        lea         rdi,[wrnum_dumpbyte]
+                        movzx       rsi,byte [r12]
+                        inc         r12
+                        xor         al,al
+                        call        printf
+                        jmp         .hexloop
+.hexend                 lea         rdi,[wrnum_lf]
+                        xor         al,al
+                        call        printf
+
                         ;
-.done                   mov         r12,[rbp-0x10]
+.done                   mov         r13,[rbp-0x38]
+                        mov         r12,[rbp-0x10]
                         leave
                         ret
 
@@ -767,5 +785,7 @@ fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
 wrnum_fmt               db          "man10 = %g, dig10 = %d, exp10 = %d",10,0
+wrnum_dumpbyte          db          " %02x",0
+wrnum_lf                db          10,0
 
                         align       8,db 0
