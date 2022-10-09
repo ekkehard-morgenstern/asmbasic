@@ -720,10 +720,47 @@ detok_wrnum             enter       0x40,0
                         fldcw       word [rbp-0x08]
                         mov         [rbp-0x08],dx   ; safekeep ctrl backup
                         ; round number to nearest integer
-                        ; frndint
+                        frndint
                         ; store result as BCD
                         fld         st0
                         fbstp       [rbp-0x30]
+                        ; check first stored BCD byte, if it's 00, then OK
+                        ; (those are the final 2 digits, if those are zero,
+                        ; then there is an exact representation)
+                        cmp         byte [rbp-0x30],0
+                        je          .skipfix
+                        ; no: write a zero then examine next byte
+                        lea         rsi,[rbp-0x2f]
+                        lea         rdi,[rbp-0x30]
+                        lea         rcx,[rbp-0x27]
+                        cld
+.fixnext                xor         al,al
+                        stosb
+                        cmp         rsi,rcx
+                        jae         .fixend
+                        lodsb
+                        cmp         al,0x99
+                        je          .fixnext
+                        ; last byte: add 1 and check for nybble overflows
+                        inc         al
+                        mov         dl,al
+                        and         dl,0x0f
+                        cmp         dl,0x09
+                        jbe         .fn_nocarry
+                        ; nybble carryover
+                        add         al,0x06
+                        mov         dl,al
+                        and         dl,0xf0
+                        cmp         dl,0x90
+                        jbe         .fn_nocarry
+                        ; byte carryover
+                        jmp         .fixnext
+                        ; store final byte
+.fn_nocarry             stosb
+
+.fixend:
+
+.skipfix:
                         ;
                         ; store result for printing
                         fstp        qword [rbp-0x20]
