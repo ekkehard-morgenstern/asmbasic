@@ -527,12 +527,13 @@ tok_rdnum               enter       0x60,0
                         ;
                         ; local variables:
                         ;   [rbp-0x02] small int temporary (word); val10
-                        ;   [rbp-0x04] small int temporary (word): dig10
+                        ;   [rbp-0x04] small int temporary (word); shift
                         ;   [rbp-0x06] small int temporary (word): exp10
                         ;   [rbp-0x08] FPU config backup (word)
                         ;   [rbp-0x10] R12 backup
                         ;   [rbp-0x18] RDI (parameter) backup
                         ;   [rbp-0x20] test: result significand
+                        ;   [rbp-0x26] small int temporary (word): sig10
                         ;   [rbp-0x30] test: result bcd
                         ;   [rbp-0x38] R13 backup
                         ;
@@ -563,13 +564,13 @@ detok_wrnum             enter       0x40,0
                         jmp         .done
 
                         ; for base 10, first initialize the FPU to use
-                        ; round-towards-zero
+                        ; round-to-nearest
 .base10                 fclex
                         fstcw       word [rbp-0x08]
                         mov         dx,[rbp-0x08]   ; dx ctrl backup
                         mov         ax,dx
                         and         ax,0xf0c0
-                        or          ax,0x0f3f   ; xcpt off, hi prec, rnd2z
+                        or          ax,0x033f   ; xcpt off, hi prec, rnd2n
                         mov         [rbp-0x08],ax
                         fldcw       word [rbp-0x08]
                         mov         [rbp-0x08],dx   ; safekeep ctrl backup
@@ -641,127 +642,6 @@ detok_wrnum             enter       0x40,0
                         ; st0 - n=2^exp2
                         ; finally, multiply to get the base10 significand
                         fmulp
-; NOW, we have a significand that has one or two digits before the decimal
-; point and zero or more digits after the decimal point, and an exponent that
-; designates the power of ten to multiply with to get the correct number.
-; However, since we want to output the number, we need to bring it as close
-; to an integral value as possible to get all the digits we can. The FPU has
-; a BCD write function that takes an up to 18 digit long integer and stores it
-; as a packed BCD number in memory. So, we begin multiplying with 10, until
-; either there's no more digits after the decimal point (fmod(n,1)=0), or the
-; maximum number of digits (18) has been reached. We need to keep track how
-; often we multiplied. First, we have to determine the number of digits before
-; the decimal point, so we don't overshoot the maximum digit range.
-                        fld         st0     ; copy the result
-                        ; st1 - result
-                        ; st0 - result
-                        fld1
-                        fxch
-                        ; st2 - result
-                        ; st1 - 1
-                        ; st0 - result
-                        fyl2x   ; 1 * log2(result)
-                        ; st1 - result
-                        ; st0 - log2(result)
-                        fldl2t  ; / log2(10)
-                        fdivp
-                        ; st1 - result
-                        ; st0 - log10(result)
-                        fistp   word [rbp-0x04]
-                        ; preset val10
-                        mov     ax,10
-                        mov     word [rbp-0x02],ax
-                        ; clear shift counter
-                        xor     cx,cx
-                        ; multiplication loop
-.upscaleloop            mov     ax,word [rbp-0x04]
-                        cmp     ax,17
-                        jge     .upscaleend
-                        ; check if fmod(n,1)=0
-                        fld     st0
-                        fld1
-                        fxch
-                        ; st2 - scaled result
-                        ; st1 - 1
-                        ; st0 - scaled result
-.loop_prem2             fprem
-                        fstsw       ax
-                        test        ax,0x0400   ; C2 = 1?
-                        jnz         .loop_prem2
-                        ; st2 - scaled result
-                        ; st1 - 1
-                        ; st0 - fmod(n,1)
-                        ; analyze result, store status in AX
-                        fxam
-                        fstsw       ax
-                        ; free intermediate results
-.check                  ffree       st0
-                        ffree       st1
-                        fincstp
-                        fincstp
-                        ; now test status (fmod(n,1)=0?)
-                        test        ax,0x4000   ; C3 = 1?
-                        jnz         .upscaleend
-                        ; multiply with 10
-                        ; st0 - scaled result
-                        fild    word [rbp-0x02]
-                        fmulp
-                        inc     word [rbp-0x04]
-                        inc     cx
-                        jmp     .upscaleloop
-.upscaleend             mov     word [rbp-0x04],cx ; save shift counter
-                        ; before rounding, rounding mode has to be reset
-                        ; to round to nearest
-                        mov         dx,[rbp-0x08]   ; dx ctrl backup
-                        mov         ax,dx
-                        and         ax,0xf0c0
-                        or          ax,0x033f   ; xcpt off, hi prec, rnd2n
-                        mov         [rbp-0x08],ax
-                        fldcw       word [rbp-0x08]
-                        mov         [rbp-0x08],dx   ; safekeep ctrl backup
-                        ; round number to nearest integer
-                        frndint
-                        ; store result as BCD
-                        fld         st0
-                        fbstp       [rbp-0x30]
-                        ; check first stored BCD byte, if it's 00, then OK
-                        ; (those are the final 2 digits, if those are zero,
-                        ; then there is an exact representation)
-                        cmp         byte [rbp-0x30],0
-                        je          .skipfix
-                        ; no: write a zero then examine next byte
-                        lea         rsi,[rbp-0x2f]
-                        lea         rdi,[rbp-0x30]
-                        lea         rcx,[rbp-0x27]
-                        cld
-.fixnext                xor         al,al
-                        stosb
-                        cmp         rsi,rcx
-                        jae         .fixend
-                        lodsb
-                        cmp         al,0x99
-                        je          .fixnext
-                        ; last byte: add 1 and check for nybble overflows
-                        inc         al
-                        mov         dl,al
-                        and         dl,0x0f
-                        cmp         dl,0x09
-                        jbe         .fn_nocarry
-                        ; nybble carryover
-                        add         al,0x06
-                        mov         dl,al
-                        and         dl,0xf0
-                        cmp         dl,0x90
-                        jbe         .fn_nocarry
-                        ; byte carryover
-                        jmp         .fixnext
-                        ; store final byte
-.fn_nocarry             stosb
-
-.fixend:
-
-.skipfix:
-                        ;
                         ; store result for printing
                         fstp        qword [rbp-0x20]
                         ; restore FPU settings
@@ -770,23 +650,8 @@ detok_wrnum             enter       0x40,0
                         ; print result
                         lea         rdi,[wrnum_fmt]
                         movq        xmm0,[rbp-0x20]
-                        movsx       rsi,word [rbp-0x04]
-                        movsx       rdx,word [rbp-0x06]
+                        movsx       rsi,word [rbp-0x06]
                         mov         al,1
-                        call        printf
-                        ; print hexdump of BCD number
-                        lea         r12,[rbp-0x30]
-                        lea         r13,[r12+10]
-.hexloop                cmp         r12,r13
-                        jae         .hexend
-                        lea         rdi,[wrnum_dumpbyte]
-                        movzx       rsi,byte [r12]
-                        inc         r12
-                        xor         al,al
-                        call        printf
-                        jmp         .hexloop
-.hexend                 lea         rdi,[wrnum_lf]
-                        xor         al,al
                         call        printf
 
                         ;
@@ -821,8 +686,6 @@ rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
-wrnum_fmt               db          "man10 = %g, dig10 = %d, exp10 = %d",10,0
-wrnum_dumpbyte          db          " %02x",0
-wrnum_lf                db          10,0
+wrnum_fmt               db          "man10 = %g, exp10 = %d",10,0
 
                         align       8,db 0
