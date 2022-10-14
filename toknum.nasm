@@ -244,10 +244,8 @@ tok_rdnum               enter       0x60,0
                         ; base 10: multiply and add
 .dodigmul2              mov         rdx,r13
                         imul        rdx,rbx
-                        seto        byte [rbp-0x58]
                         jo          .fractloop
                         add         rdx,rax
-                        seto        byte [rbp-0x58]
                         jo          .fractloop
                         mov         r13,rdx
                         ; remember we added a fraction digit
