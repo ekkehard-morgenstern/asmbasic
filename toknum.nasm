@@ -26,7 +26,7 @@
                         cpu         x64
                         bits        64
 
-DETOK_BASE10_MAXDEC     equ         17
+DETOK_BASE10_MAXDEC     equ         16
 
                         section     .text
 
@@ -662,56 +662,13 @@ detok_wrnum             enter       0x50,0
                         ; for each digit, do fmod(val,10)
 .storeloop              fld         st0
                         ; st1 - result
-                        ; st0 - val (=result)
-                        ; compute 10^n = 2^(n*log2(10))
-                        fild        word [rbp-0x4e] ; n
-                        fldl2t      ; log2(10)
-                        fmulp
-                        fld1
-                        ; st3 - result
-                        ; st2 - val
-                        ; st1 - n*log2(10)
-                        ; st0 - 1
-                        fld         st1
-                        ; st4 - result
-                        ; st3 - val
-                        ; st2 - exp=n*log2(10)
-                        ; st1 - 1
-                        ; st0 - exp=n*log2(10)
-                        ; compute fmod(exp,1)
-.loop_prem3             fprem               ; n=fmod(exp2,1)
-                        fstsw       ax
-                        test        ax,0x0400
-                        jnz         .loop_prem3
-                        ; st4 - result
-                        ; st3 - val
-                        ; st2 - exp=n*log2(10)
-                        ; st1 - 1
-                        ; st0 - fmod(exp,1) - for f2xm1
-                        f2xm1
-                        faddp
-                        ; st3 - result
-                        ; st2 - val
-                        ; st1 - exp=n*log2(10)
-                        ; st0 - (2^fmod(exp,1)-1)+1
-                        fscale
-                        ; st3 - result
-                        ; st2 - val
-                        ; st1 - exp=n*log2(10)
-                        ; st0 - (2^(int(exp)+fmod(exp,1))-1)+1
-                        fstp    st1
-                        ; st2 - result
-                        ; st1 - val
-                        ; st0 - (2^(int(exp)+fmod(exp,1))-1)+1
-                        fmulp
-                        ; st1 - result
-                        ; st0 - val*(10^n)
+                        ; st0 - val=result
                         fild        word [rbp-0x02] ; 10
                         fxch
                         ; st2 - result
                         ; st1 - 10
-                        ; st0 - tmp=val*(10^n)
-                        ; round tmp to integer (towards zero, i.e. trunc)
+                        ; st0 - val
+                        ; round val to integer (towards zero, i.e. trunc)
                         ; set rounding to round towards zero
                         mov         ax,[rbp-0x08]
                         and         ax,0xf0c0
@@ -721,14 +678,14 @@ detok_wrnum             enter       0x50,0
                         frndint
                         ; st2 - result
                         ; st1 - 10
-                        ; st0 - trunc(tmp)
-.loop_prem2             fprem               ; n=fmod(tmp,10)
+                        ; st0 - trunc(val)
+.loop_prem2             fprem               ; n=fmod(val,10)
                         fstsw       ax
                         test        ax,0x0400
                         jnz         .loop_prem2
                         ; st2 - result
                         ; st1 - 10
-                        ; st0 - fmod(trunc(tmp),10)
+                        ; st0 - fmod(trunc(val),10)
                         ; restore rounding mode to nearest
                         mov         ax,[rbp-0x08]
                         and         ax,0xf0c0
@@ -737,10 +694,9 @@ detok_wrnum             enter       0x50,0
                         fldcw       word [rbp-0x50]
                         ; fetch the digit in st0
                         fistp       word [rbp-0x50]
-                        ; free the 10 on the stack
-                        ffree       st0
-                        fincstp
-                        ; st0 - result
+                        ; multiply 10 with result
+                        fmulp
+                        ; st0 - new result
                         ; store digit
                         mov         ax,[rbp-0x50]
                         add         al,'0'
