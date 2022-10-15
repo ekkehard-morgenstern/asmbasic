@@ -26,11 +26,14 @@
                         cpu         x64
                         bits        64
 
+DETOK_BASE10_MAXDEC     equ         17
+
                         section     .text
 
                         global      tok_rdamp,tok_rdnum,detok_wrnum
                         extern      tok_getch,tok_putb,sourceputback
                         extern      printf,ucputcp
+
 
 ; ---------------------------------------------------------------------------
 
@@ -489,9 +492,7 @@ tok_rdnum               enter       0x60,0
 ; effectively resulting in 2^(exp*log2(10))
                         fscale
                         ; swap result up, and remove temporary values
-                        fxch        st1
-                        ffree       st0
-                        fincstp
+                        fstp        st1
                         ; multiply with intpart
                         mov         [rbp-0x40],r13
                         fild        qword [rbp-0x40]
@@ -524,21 +525,23 @@ tok_rdnum               enter       0x60,0
                         ; rsi - base (2,8,10,16)
                         ;
                         ; local variables:
-                        ;   [rbp-0x02] small int temporary (word); val10
-                        ;   [rbp-0x04] small int temporary (word); shift
+                        ;   [rbp-0x02] small int temporary (word): val10
+                        ;   [rbp-0x03]
+                        ;   [rbp-0x04] first digit flag (byte)
                         ;   [rbp-0x06] small int temporary (word): exp10
                         ;   [rbp-0x08] FPU config backup (word)
                         ;   [rbp-0x10] R12 backup
                         ;   [rbp-0x18] RDI (parameter) backup
-                        ;   [rbp-0x20] test: result significand
-                        ;   [rbp-0x26] small int temporary (word): sig10
-                        ;   [rbp-0x30] test: result bcd
-                        ;   [rbp-0x38] R13 backup
+                        ;   [rbp-0x20] result significand
+                        ;   [rbp-0x28] R13 backup
+                        ;   [rbp-0x40] test: result buffer (24 bytes)
+                        ;   [rbp-0x4e] small int temporary (word): multiplier
+                        ;   [rbp-0x50] small int temporary (word): misc
                         ;
-detok_wrnum             enter       0x40,0
+detok_wrnum             enter       0x50,0
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],rdi
-                        mov         [rbp-0x38],r13
+                        mov         [rbp-0x28],r13
 
                         ; clear sign (must be processed by caller)
                         mov         rdx,0x7fffffffffffffff
@@ -633,15 +636,129 @@ detok_wrnum             enter       0x40,0
                         ; st1 - fraction of exp10, in exp2 form
                         ; st0 - n=2^exp2
                         ; swap result up, and remove temporary values
-                        fxch        st1
-                        ffree       st0
-                        fincstp
+                        fstp        st1
                         ; st1 - significand
                         ; st0 - n=2^exp2
                         ; finally, multiply to get the base10 significand
                         fmulp
                         ; store result for printing
-                        fstp        qword [rbp-0x20]
+                        fst         qword [rbp-0x20]
+                        ; st0 - result
+                        ; clear result buffer
+                        cld
+                        lea         rdi,[rbp-0x40]
+                        xor         rax,rax
+                        mov         rcx,3   ; 3*8=24 bytes
+                        rep         stosq
+                        ; set buf ptr to beginning
+                        lea         rdi,[rbp-0x40]
+                        ; set "first digit" flag
+                        mov         byte [rbp-0x04],1
+                        ; set "10" value
+                        mov         word [rbp-0x02],10
+                        ; multiplier 10^n (digit counter)
+                        mov         word [rbp-0x4e],0
+                        ; st0 - result
+                        ; for each digit, do fmod(val,10)
+.storeloop              fld         st0
+                        ; st1 - result
+                        ; st0 - val (=result)
+                        ; compute 10^n = 2^(n*log2(10))
+                        fild        word [rbp-0x4e] ; n
+                        fldl2t      ; log2(10)
+                        fmulp
+                        fld1
+                        ; st3 - result
+                        ; st2 - val
+                        ; st1 - n*log2(10)
+                        ; st0 - 1
+                        fld         st1
+                        ; st4 - result
+                        ; st3 - val
+                        ; st2 - exp=n*log2(10)
+                        ; st1 - 1
+                        ; st0 - exp=n*log2(10)
+                        ; compute fmod(exp,1)
+.loop_prem3             fprem               ; n=fmod(exp2,1)
+                        fstsw       ax
+                        test        ax,0x0400
+                        jnz         .loop_prem3
+                        ; st4 - result
+                        ; st3 - val
+                        ; st2 - exp=n*log2(10)
+                        ; st1 - 1
+                        ; st0 - fmod(exp,1) - for f2xm1
+                        f2xm1
+                        faddp
+                        ; st3 - result
+                        ; st2 - val
+                        ; st1 - exp=n*log2(10)
+                        ; st0 - (2^fmod(exp,1)-1)+1
+                        fscale
+                        ; st3 - result
+                        ; st2 - val
+                        ; st1 - exp=n*log2(10)
+                        ; st0 - (2^(int(exp)+fmod(exp,1))-1)+1
+                        fstp    st1
+                        ; st2 - result
+                        ; st1 - val
+                        ; st0 - (2^(int(exp)+fmod(exp,1))-1)+1
+                        fmulp
+                        ; st1 - result
+                        ; st0 - val*(10^n)
+                        fild        word [rbp-0x02] ; 10
+                        fxch
+                        ; st2 - result
+                        ; st1 - 10
+                        ; st0 - tmp=val*(10^n)
+                        ; round tmp to integer (towards zero, i.e. trunc)
+                        ; set rounding to round towards zero
+                        mov         ax,[rbp-0x08]
+                        and         ax,0xf0c0
+                        or          ax,0x0f3f   ; xcpt off, hi prec, rnd2z
+                        mov         [rbp-0x50],ax
+                        fldcw       word [rbp-0x50]
+                        frndint
+                        ; st2 - result
+                        ; st1 - 10
+                        ; st0 - trunc(tmp)
+.loop_prem2             fprem               ; n=fmod(tmp,10)
+                        fstsw       ax
+                        test        ax,0x0400
+                        jnz         .loop_prem2
+                        ; st2 - result
+                        ; st1 - 10
+                        ; st0 - fmod(trunc(tmp),10)
+                        ; restore rounding mode to nearest
+                        mov         ax,[rbp-0x08]
+                        and         ax,0xf0c0
+                        or          ax,0x033f   ; xcpt off, hi prec, rnd2n
+                        mov         [rbp-0x50],ax
+                        fldcw       word [rbp-0x50]
+                        ; fetch the digit in st0
+                        fistp       word [rbp-0x50]
+                        ; free the 10 on the stack
+                        ffree       st0
+                        fincstp
+                        ; st0 - result
+                        ; store digit
+                        mov         ax,[rbp-0x50]
+                        add         al,'0'
+                        stosb
+                        ; if it was the first digit, also store a dp
+                        cmp         byte [rbp-0x04],1
+                        jne         .notdp
+                        mov         byte [rbp-0x04],0
+                        mov         al,'.'
+                        stosb
+                        ; goto next digit
+.notdp                  inc         word [rbp-0x4e]
+                        cmp         word [rbp-0x4e],DETOK_BASE10_MAXDEC
+                        jb          .storeloop
+                        ; done: free result in st0
+                        ffree       st0
+                        fincstp
+
                         ; restore FPU settings
                         fclex
                         fldcw       word [rbp-0x08]
@@ -649,11 +766,12 @@ detok_wrnum             enter       0x40,0
                         lea         rdi,[wrnum_fmt]
                         movq        xmm0,[rbp-0x20]
                         movsx       rsi,word [rbp-0x06]
+                        lea         rdx,[rbp-0x40]
                         mov         al,1
                         call        printf
 
                         ;
-.done                   mov         r13,[rbp-0x38]
+.done                   mov         r13,[rbp-0x28]
                         mov         r12,[rbp-0x10]
                         leave
                         ret
@@ -684,6 +802,6 @@ rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
-wrnum_fmt               db          "man10 = %g, exp10 = %d",10,0
+wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s",10,0
 
                         align       8,db 0
