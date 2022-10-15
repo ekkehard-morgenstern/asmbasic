@@ -714,7 +714,45 @@ detok_wrnum             enter       0x50,0
                         ; done: free result in st0
                         ffree       st0
                         fincstp
-
+; RDI points just after final digit written
+; examine final digit to decide whether to go for a zero-run (0) or a
+; nine-run (9), which rounds the final digits up
+                        lea         rdx,[rbp-0x40]
+                        dec         rdi
+                        std
+                        mov         rsi,rdi
+                        lodsb
+                        cmp         al,'0'
+                        je          .zerorun
+                        cmp         al,'9'
+                        je          .ninerun
+                        ; no fixup necessary
+                        jmp         .nofixup
+.zerorun                xor         al,al
+                        stosb
+                        mov         rsi,rdi
+                        lodsb
+                        cmp         al,'0'
+                        je          .zerorun
+                        jmp         .nofixup
+.ninerun                xor         al,al
+                        stosb
+                        cmp         rdi,rdx
+                        jb          .beforebuffer
+                        mov         rsi,rdi
+                        lodsb
+                        cmp         al,'9'
+                        je          .ninerun
+                        cmp         al,'.'
+                        je          .ninerun
+; IMPORTANT: if the dp (.) has been run over, there's only one digit after that.
+; However, this digit cannot be 9, so there's technically no need for bounds
+; checking. I put it in anyway, just to be safe.
+                        inc         al
+                        stosb
+                        jmp         .nofixup
+.beforebuffer:
+.nofixup                cld
                         ; restore FPU settings
                         fclex
                         fldcw       word [rbp-0x08]
