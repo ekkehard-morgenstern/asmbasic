@@ -852,11 +852,7 @@ detok_wrnum             enter       0x70,0
 ;   1.23 (e+7)
 ;  |h|    dl   |
 ;   12300000
-; total leeway we have is MAXDEC - current number of digits
 .exppos                 mov         dx,DETOK_BASE10_MAXDEC
-                        sub         dx,cx
-                        cmp         dx,0
-                        je          .noshift
                         ; compare exponent against that
                         cmp         ax,dx
                         jle         .lessmax
