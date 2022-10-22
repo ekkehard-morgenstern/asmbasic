@@ -534,11 +534,13 @@ tok_rdnum               enter       0x60,0
                         ;   [rbp-0x18] RDI (parameter) backup
                         ;   [rbp-0x20] result significand
                         ;   [rbp-0x28] R13 backup
-                        ;   [rbp-0x40] test: result buffer (24 bytes)
+                        ;   [rbp-0x40] result buffer (24 bytes)
+                        ;   [rbp-0x4a] small int temporary (word): DX backup
                         ;   [rbp-0x4e] small int temporary (word): multiplier
                         ;   [rbp-0x50] small int temporary (word): misc
+                        ;   [rbp-0x70] result buffer 2 (32 bytes)
                         ;
-detok_wrnum             enter       0x50,0
+detok_wrnum             enter       0x70,0
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],rdi
                         mov         [rbp-0x28],r13
@@ -750,17 +752,160 @@ detok_wrnum             enter       0x50,0
 ; checking. I put it in anyway, just to be safe.
                         inc         al
                         stosb
-                        jmp         .nofixup
+                        ; jmp         .nofixup
 .beforebuffer:
 .nofixup                cld
-                        ; restore FPU settings
+                        ; restore FPU settings (don't need it anymore here)
                         fclex
                         fldcw       word [rbp-0x08]
+                        ; at this point, all processing is text-based
+                        ; count digits before and after the decimal point
+                        lea         rsi,[rbp-0x40]
+                        ; ah - "have decimal point" flag
+                        xor         ah,ah
+                        ; dh - digits before decimal point
+                        ; dl - digits after  decimal point
+                        xor         dx,dx
+                        ; loop
+.countdigits            lodsb
+                        or          al,al
+                        jz          .countdone
+                        cmp         al,'.'
+                        sete        ah
+                        je          .countdigits
+                        or          ah,ah
+                        jnz         .afterdec
+                        inc         dh
+                        jmp         .countdigits
+.afterdec               inc         dl
+                        jmp         .countdigits
+                        ; initialize target buffer
+.countdone              lea         rdi,[rbp-0x70]
+                        mov         rcx,4
+                        xor         rax,rax
+                        rep         stosq
+                        ; backup result (DX)
+                        mov         [rbp-0x4a],dx
+;
+;   1.123456789         1
+;  |h|    dl   |       |h| dl=0
+;   0.000000123
+;
+                        ; get number of total digits
+                        movzx       cx,dl
+                        add         cl,dh
+                        ; get exponent shift
+                        mov         ax,[rbp-0x06]
+                        ; check to see if it's zero, positive or negative
+                        cmp         ax,0
+                        je          .noshift
+                        jg          .exppos
+                        ; exp is negative
+; what we want here is:
+;   1.23 (e-7)
+;  |h|    dl   |
+;   0.000000123
+; total leeway we have is MAXDEC - current number of digits
+                        mov         dx,DETOK_BASE10_MAXDEC
+                        sub         dx,cx
+                        cmp         dx,0
+                        je          .noshift
+                        ; compare exponent against that
+                        neg         ax
+                        cmp         ax,dx
+                        jle         .neglessmax
+                        mov         ax,dx   ; limit to dx
+                        jmp         .negshift
+.neglessmax             mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.negshift               sub         ax,dx
+                        neg         ax
+                        mov         [rbp-0x06],ax
+                        ; dx contains the number of zeros before
+                        ; the actual digits, the first one being
+                        ; the one before the decimal point.
+                        lea         rdi,[rbp-0x70]
+                        mov         al,'0'
+                        stosb
+                        mov         al,'.'
+                        stosb
+                        mov         al,'0'
+.leadzero               dec         dl
+                        jz          .endlead
+                        stosb
+                        jmp         .leadzero
+                        ; now output the remaining digits
+.endlead                movzx       rcx,cx
+                        lea         rsi,[rbp-0x40]
+.endlead2               lodsb
+                        cmp         al,'.'
+                        je          .endlead2
+                        stosb
+                        loop        .endlead2
+                        jmp         .shiftdone
+                        ; exponent is positive
+; what we want here is:
+;   1.23 (e+7)
+;  |h|    dl   |
+;   12300000
+; total leeway we have is MAXDEC - current number of digits
+.exppos                 mov         dx,DETOK_BASE10_MAXDEC
+                        sub         dx,cx
+                        cmp         dx,0
+                        je          .noshift
+                        ; compare exponent against that
+                        cmp         ax,dx
+                        jle         .lessmax
+                        mov         ax,dx   ; limit to dx
+                        jmp         .shift
+.lessmax                mov         dx,ax   ; limit to ax
+                        ; reduce exponent by amount
+.shift                  sub         ax,dx
+                        mov         [rbp-0x06],ax
+                        ; dx contains the number of digits
+                        ; either fetched from after the decimal point
+                        ; or added as zeroes to the end
+                        lea         rsi,[rbp-0x40]
+                        lea         rdi,[rbp-0x70]
+                        movzx       rcx,cx
+                        ; first, copy the leading digits straight over
+.fetchloop              lodsb
+                        cmp         al,'.'
+                        je          .gotdp
+                        stosb
+                        loop        .fetchloop
+                        ; finished before reaching a decimal point
+                        ; now add dx zeroes
+                        movzx       rcx,dx
+                        test        rcx,rcx
+                        jz          .shiftdone
+                        mov         al,'0'
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; after decimal point
+.gotdp                  sub         dx,cx
+                        rep         movsb
+                        cmp         dx,0
+                        jle         .shiftdone
+                        mov         al,'.'
+                        stosb
+                        mov         al,'0'
+                        movzx       rcx,dx
+                        rep         stosb
+                        jmp         .shiftdone
+                        ; no shift: copy result over
+.noshift                lea         rsi,[rbp-0x40]
+                        lea         rdi,[rbp-0x70]
+                        mov         rcx,0x18
+                        repne       movsb
+.shiftdone:
+
                         ; print result
                         lea         rdi,[wrnum_fmt]
                         movq        xmm0,[rbp-0x20]
                         movsx       rsi,word [rbp-0x06]
-                        lea         rdx,[rbp-0x40]
+                        lea         rdx,[rbp-0x70]
+                        lea         rcx,[rbp-0x40]
                         mov         al,1
                         call        printf
 
@@ -796,6 +941,7 @@ rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
-wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s",10,0
+wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s "
+                        db          "(was %s)",10,0
 
                         align       8,db 0
