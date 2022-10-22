@@ -883,21 +883,51 @@ detok_wrnum             enter       0x70,0
                         rep         stosb
                         jmp         .shiftdone
                         ; after decimal point
-.gotdp                  sub         dx,cx
+                        ;   cx - available digits in buffer
+                        ;   dx - digits to go before decimal point
+.gotdp                  cmp         dx,cx
+                        jg          .fillzero
+                        ; dx <= cx
+                        ; copy digits to write before decimal point
+                        sub         cx,dx
+                        xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .skipcopy
                         rep         movsb
-                        cmp         dx,0
-                        jle         .shiftdone
+                        ; write decimal point then remaining digits
+.skipcopy               xchg        cx,dx
+                        movzx       rcx,cx
+                        test        rcx,rcx
+                        jz          .shiftdone
                         mov         al,'.'
                         stosb
-                        mov         al,'0'
+                        rep         movsb
+                        jmp         .shiftdone
+                        ; integral number (no fraction intended)
+                        ; dx > cx, fillcnt = dx - cx
+.fillzero               sub         dx,cx
+                        ; copy remaining digits
+                        movzx       rcx,cx
+                        rep         movsb
+                        ; then fill with zeroes
                         movzx       rcx,dx
+                        mov         al,'0'
                         rep         stosb
                         jmp         .shiftdone
                         ; no shift: copy result over
 .noshift                lea         rsi,[rbp-0x40]
                         lea         rdi,[rbp-0x70]
                         mov         rcx,0x18
-                        repne       movsb
+.copy                   lodsb
+                        cmp         al,0
+                        je          .copydone
+                        stosb
+                        loop        .copy
+                        ; if the last character written was a '.', delete it
+.copydone               cmp         byte [rdi-1],'.'
+                        jne         .shiftdone
+                        mov         byte [rdi-1],0
 .shiftdone:
 
                         ; print result
