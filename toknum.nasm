@@ -32,7 +32,8 @@ DETOK_BASE10_MAXDEC     equ         16
 
                         global      tok_rdamp,tok_rdnum,detok_wrnum
                         extern      tok_getch,tok_putb,sourceputback
-                        extern      printf,ucputcp
+                        extern      printf,ucputcp,wclineout,wclineoutbeg
+                        extern      uclineoutinit
 
 
 ; ---------------------------------------------------------------------------
@@ -78,6 +79,9 @@ tok_rdamp               enter       0x10,0
                         call        printf
                         ; TEST: call detok_wrnum on the number to see if it
                         ; can be detokenized
+                        lea         rdi,[numbuf_test]
+                        mov         rsi,numbuf_test_size
+                        call        uclineoutinit
                         mov         rdi,[rbp-0x08]
                         mov         rsi,10  ; need to test base 10 code
                         call        detok_wrnum
@@ -928,19 +932,84 @@ detok_wrnum             enter       0x70,0
 .copydone               cmp         byte [rdi-1],'.'
                         jne         .shiftdone
                         mov         byte [rdi-1],0
-.shiftdone:
+                        ; after shifting the number around, examine exponent
+.shiftdone              mov         ax,[rbp-0x06]
+                        cmp         ax,0
+                        jz          .complete
+                        ; write exponent indicator
+                        mov         al,'E'
+                        stosb
+                        ; write exponent sign
+                        mov         ax,[rbp-0x06]
+                        cmp         ax,0
+                        jge         .posexp
+                        mov         al,'-'
+                        neg         word [rbp-0x06]
+                        stosb
+.posexp                 mov         ax,[rbp-0x06]
+                        mov         cx,1000     ; exp / 1000
+                        xor         dx,dx
+                        div         cx
+                        test        ax,ax
+                        jz          .notthousand
+                        xor         dx,dx       ; ( exp / 1000 ) MOD 10
+                        mov         cx,10
+                        div         cx
+                        mov         ax,dx
+                        add         al,'0'
+                        stosb
+.notthousand            mov         ax,[rbp-0x06]
+                        mov         cx,100      ; exp / 100
+                        xor         dx,dx
+                        div         cx
+                        test        ax,ax
+                        jz          .nothundred
+                        xor         dx,dx       ; ( exp / 100 ) MOD 10
+                        mov         cx,10
+                        div         cx
+                        mov         ax,dx
+                        add         al,'0'
+                        stosb
+.nothundred             mov         ax,[rbp-0x06]
+                        mov         cx,10       ; exp / 10
+                        xor         dx,dx
+                        div         cx
+                        test        ax,ax
+                        jz          .notten
+                        xor         dx,dx       ; ( exp / 10 ) MOD 10
+                        div         cx
+                        mov         ax,dx
+                        add         al,'0'
+                        stosb
+.notten                 mov         ax,[rbp-0x06]
+                        xor         dx,dx       ; exp MOD 10
+                        div         cx
+                        mov         ax,dx
+                        add         al,'0'
+                        stosb
+                        ; now, finally, copy result string to output buffer
+.complete               lea         r12,[rbp-0x70]
+                        jmp         .outfixed
 
-                        ; print result
-                        lea         rdi,[wrnum_fmt]
-                        movq        xmm0,[rbp-0x20]
-                        movsx       rsi,word [rbp-0x06]
-                        lea         rdx,[rbp-0x70]
-                        lea         rcx,[rbp-0x40]
-                        mov         al,1
+                        ; debug output: print result
+;                        lea         rdi,[wrnum_fmt]
+;                        movq        xmm0,[rbp-0x20]
+;                        movsx       rsi,word [rbp-0x06]
+;                        lea         rdx,[rbp-0x70]
+;                        lea         rcx,[rbp-0x40]
+;                        mov         al,1
+;                        call        printf
+
+                        ; TEST: output detokenization result
+.done                   lea         rdi,[outbuf_fmt]
+                        mov         rcx,[wclineoutbeg]
+                        mov         rsi,[wclineout]
+                        sub         rsi,rcx
+                        mov         rdx,rsi
+                        xor         al,al
                         call        printf
 
-                        ;
-.done                   mov         r13,[rbp-0x28]
+                        mov         r13,[rbp-0x28]
                         mov         r12,[rbp-0x10]
                         leave
                         ret
@@ -971,7 +1040,13 @@ rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
-wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s "
-                        db          "(was %s)",10,0
+; wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s "
+;                        db          "(was %s)",10,0
+outbuf_fmt              db          "buffer = <<%-*.*s>>",10,0
 
                         align       8,db 0
+
+                        section     .bss
+
+numbuf_test             resq        100
+numbuf_test_size        equ         $-numbuf_test

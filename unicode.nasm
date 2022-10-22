@@ -154,7 +154,7 @@ ucputcp                 enter       0,0
 ; variables in block-structured storage
 
                         section     .bss
-                        global      wcchar
+                        global      wcchar,wclineoutbeg,wclineout
 
 wcchar                  resd        1
                         resd        1
