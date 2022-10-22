@@ -69,7 +69,8 @@ tok_rdamp               enter       0x10,0
 .beg_oct                mov         rdi,8
                         jmp         .beg_read
 .beg_bin                mov         rdi,2
-.beg_read               call        tok_rdnum
+.beg_read               mov         [rbp-0x10],rdi
+                        call        tok_rdnum
                         ; TEST: call printf to debug number
                         mov         [rbp-0x08],rax
                         lea         rdi,[rdnum_fmt]
@@ -83,7 +84,7 @@ tok_rdamp               enter       0x10,0
                         mov         rsi,numbuf_test_size
                         call        uclineoutinit
                         mov         rdi,[rbp-0x08]
-                        mov         rsi,10  ; need to test base 10 code
+                        mov         rsi,[rbp-0x10]
                         call        detok_wrnum
                         jmp         .end
 
@@ -528,7 +529,7 @@ tok_rdnum               enter       0x60,0
                         ; rdi - IEEE double precision floating-point
                         ; rsi - base (2,8,10,16)
                         ;
-                        ; local variables:
+                        ; local variables (base 10 decoding):
                         ;   [rbp-0x02] small int temporary (word): val10
                         ;   [rbp-0x03]
                         ;   [rbp-0x04] first digit flag (byte)
@@ -543,11 +544,22 @@ tok_rdnum               enter       0x60,0
                         ;   [rbp-0x4e] small int temporary (word): multiplier
                         ;   [rbp-0x50] small int temporary (word): misc
                         ;   [rbp-0x70] result buffer 2 (32 bytes)
+                        ;   [rbp-0x78] RBX backup
                         ;
-detok_wrnum             enter       0x70,0
+                        ; local variables (base 2/8/16 decoding):
+                        ;
+                        ;   [rbp-0x06] small int temporary (word): exp10
+                        ;   [rbp-0x10] R12 backup
+                        ;   [rbp-0x18] RDI (parameter) backup
+                        ;   [rbp-0x28] R13 backup
+                        ;   [rbp-0x70] result buffer (72 bytes)
+                        ;   [rbp-0x78] RBX backup
+                        ;
+detok_wrnum             enter       0x80,0
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],rdi
                         mov         [rbp-0x28],r13
+                        mov         [rbp-0x78],rbx
 
                         ; clear sign (must be processed by caller)
                         mov         rdx,0x7fffffffffffffff
@@ -563,12 +575,68 @@ detok_wrnum             enter       0x70,0
                         cmp         rdi,rdx
                         je          .nan
 
-
                         cmp         rsi,10
                         je          .base10
+                        cmp         rsi,16
+                        je          .base2816
+                        cmp         rsi,8
+                        je          .base2816
+                        cmp         rsi,2
+                        je          .base2816
 
+                        jmp         .err
 
-                        jmp         .done
+                        ; bases 2/8/16: get bit group size
+                        ; 02: 00010 => 1
+                        ; 08: 01000 => 3
+                        ; 16: 10000 => 4
+.base2816               bsf         rcx,rsi
+                        ; make a mask for that size ((1<<n)-1)
+                        mov         rdx,1
+                        shl         rdx,cl
+                        dec         rdx
+                        ; rotate mask n bits to the right to get it into the
+                        ; leftmost position (highest bits)
+                        ror         rdx,cl
+                        ; setup
+                        mov         r12,rcx
+                        mov         rsi,rdi
+                        cld
+                        lea         rdi,[rbp-0x70]
+                        xor         rax,rax
+                        mov         rcx,9   ; 72 bytes = 9 * 8
+                        rep         stosq
+                        mov         rcx,r12
+                        lea         rdi,[rbp-0x70]
+                        ; prepare mantissa
+                        mov         r13,0x000fffffffffffff
+                        and         rsi,r13
+                        ror         rsi,52
+                        ; output initial '1.'
+                        lea         rbx,[xlat_hex]
+                        mov         al,'1'
+                        stosb
+                        mov         al,'.'
+                        stosb
+                        ; loop: AND section with mask, output digit
+.b2816out               mov         rax,rdx
+                        and         rax,rsi
+                        rol         rax,cl
+                        xlatb
+                        stosb
+                        shl         rsi,cl
+                        jnz         .b2816out
+                        ; done for the mantissa: now extract exponent
+                        mov         rax,[rbp-0x18]
+                        mov         r13,0x7ff0000000000000
+                        and         rax,r13
+                        rol         rax,12
+                        sub         rax,1023
+                        mov         word [rbp-0x06],ax
+                        ; output as 'P' notation
+                        mov         al,'P'
+                        stosb
+                        jmp         .writeexp
 
                         ; for base 10, first initialize the FPU to use
                         ; round-to-nearest
@@ -936,7 +1004,7 @@ detok_wrnum             enter       0x70,0
                         mov         al,'E'
                         stosb
                         ; write exponent sign
-                        mov         ax,[rbp-0x06]
+.writeexp               mov         ax,[rbp-0x06]
                         cmp         ax,0
                         jge         .posexp
                         mov         al,'-'
@@ -987,15 +1055,6 @@ detok_wrnum             enter       0x70,0
 .complete               lea         r12,[rbp-0x70]
                         jmp         .outfixed
 
-                        ; debug output: print result
-;                        lea         rdi,[wrnum_fmt]
-;                        movq        xmm0,[rbp-0x20]
-;                        movsx       rsi,word [rbp-0x06]
-;                        lea         rdx,[rbp-0x70]
-;                        lea         rcx,[rbp-0x40]
-;                        mov         al,1
-;                        call        printf
-
                         ; TEST: output detokenization result
 .done                   lea         rdi,[outbuf_fmt]
                         mov         rcx,[wclineoutbeg]
@@ -1005,6 +1064,7 @@ detok_wrnum             enter       0x70,0
                         xor         al,al
                         call        printf
 
+                        mov         rbx,[rbp-0x78]
                         mov         r13,[rbp-0x28]
                         mov         r12,[rbp-0x10]
                         leave
@@ -1028,6 +1088,9 @@ detok_wrnum             enter       0x70,0
 .nan                    lea         r12,[fixed_nan]
                         jmp         .outfixed
 
+.err                    lea         r12,[fixed_err]
+                        jmp         .outfixed
+
 ; ---------------------------------------------------------------------------
 
                         section     .rodata
@@ -1036,8 +1099,8 @@ rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
-; wrnum_fmt               db          "man10 = %g, exp10 = %d, text = %s "
-;                        db          "(was %s)",10,0
+fixed_err               db          "ERR",0
+xlat_hex                db          "0123456789ABCDEF"
 outbuf_fmt              db          "buffer = <<%-*.*s>>",10,0
 
                         align       8,db 0
