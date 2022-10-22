@@ -31,10 +31,8 @@ DETOK_BASE10_MAXDEC     equ         16
                         section     .text
 
                         global      tok_rdamp,tok_rdnum,detok_wrnum
-                        extern      tok_getch,tok_putb,sourceputback
-                        extern      printf,ucputcp,wclineout,wclineoutbeg
-                        extern      uclineoutinit
-
+                        extern      tok_getch,tok_putb,tok_putq,sourceputback
+                        extern      detok_putch
 
 ; ---------------------------------------------------------------------------
 
@@ -71,21 +69,19 @@ tok_rdamp               enter       0x10,0
 .beg_bin                mov         rdi,2
 .beg_read               mov         [rbp-0x10],rdi
                         call        tok_rdnum
-                        ; TEST: call printf to debug number
                         mov         [rbp-0x08],rax
-                        lea         rdi,[rdnum_fmt]
-                        mov         rsi,rax
-                        movq        xmm0,rax
-                        mov         al,1
-                        call        printf
-                        ; TEST: call detok_wrnum on the number to see if it
-                        ; can be detokenized
-                        lea         rdi,[numbuf_test]
-                        mov         rsi,numbuf_test_size
-                        call        uclineoutinit
-                        mov         rdi,[rbp-0x08]
-                        mov         rsi,[rbp-0x10]
-                        call        detok_wrnum
+
+                        ; numbers are stored with a 01 prefix, followed by the
+                        ; number base (2/8/10/16), then followed by 8 bytes of
+                        ; IEEE 64 bit floating-point. NOTE that tokenized form
+                        ; uses network byte order (big endian).
+                        mov         rdi,0x01
+                        call        tok_putb
+                        mov         rdi,[rbp-0x10]
+                        call        tok_putb
+                        mov         rdi,rax
+                        call        tok_putq
+
                         jmp         .end
 
 ; ---------------------------------------------------------------------------
@@ -95,6 +91,9 @@ tok_rdamp               enter       0x10,0
                         ;   rdi - base
                         ; output:
                         ;   rax - IEEE double-precision binary floating-point
+                        ;   (note this is apparent conflict with the ABI, but
+                        ;   we're outputting an opaque binary data word, not a
+                        ;   number intended for computation)
                         ;
                         ; local variables:
                         ;   [rbp-0x08] - rbx backup
@@ -1055,16 +1054,7 @@ detok_wrnum             enter       0x80,0
 .complete               lea         r12,[rbp-0x70]
                         jmp         .outfixed
 
-                        ; TEST: output detokenization result
-.done                   lea         rdi,[outbuf_fmt]
-                        mov         rcx,[wclineoutbeg]
-                        mov         rsi,[wclineout]
-                        sub         rsi,rcx
-                        mov         rdx,rsi
-                        xor         al,al
-                        call        printf
-
-                        mov         rbx,[rbp-0x78]
+.done                   mov         rbx,[rbp-0x78]
                         mov         r13,[rbp-0x28]
                         mov         r12,[rbp-0x10]
                         leave
@@ -1075,7 +1065,7 @@ detok_wrnum             enter       0x80,0
                         test        rax,rax
                         jz          .done
                         mov         rdi,rax
-                        call        ucputcp
+                        call        detok_putch
                         inc         r12
                         jmp         .outfixed
 
@@ -1095,13 +1085,11 @@ detok_wrnum             enter       0x80,0
 
                         section     .rodata
 
-rdnum_fmt               db          "number: 0x%016Lx %g",10,0
 fixed_zero              db          "0",0
 fixed_inf               db          "INF",0
 fixed_nan               db          "NAN",0
 fixed_err               db          "ERR",0
 xlat_hex                db          "0123456789ABCDEF"
-outbuf_fmt              db          "buffer = <<%-*.*s>>",10,0
 
                         align       8,db 0
 

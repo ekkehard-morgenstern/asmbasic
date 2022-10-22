@@ -83,7 +83,7 @@ TKM_HASHSIZE            equ         1000
                         section     .text
 
                         global      init_tokenizer,dump_tokenmap,tokenize
-                        global      tok_getch,tok_putb
+                        global      tok_getch,tok_putb,tok_putq,detok_putch
                         extern      xalloc,printf
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         extern      tok_rdamp
@@ -343,6 +343,38 @@ tok_getch               enter       0,0
                         ; put token byte in rdi to token buffer
                         ; TBD
 tok_putb                enter       0,0
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; put token quadword in rdi to token buffer
+
+tok_putq                enter       0x10,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         rbx,rdi
+                        mov         r12,8
+
+.putloop                rol         rbx,8
+                        mov         rdi,rbx
+                        and         rdi,0xff
+                        call        tok_putb
+
+                        dec         r12
+                        jnz         .putloop
+
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; put code point in rdi to detokenization buffer
+                        ; TBD
+detok_putch             enter       0,0
+                        call        ucputcp
                         leave
                         ret
 
