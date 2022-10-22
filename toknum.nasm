@@ -856,7 +856,7 @@ detok_wrnum             enter       0x70,0
                         ; compare exponent against that
                         cmp         ax,dx
                         jle         .lessmax
-                        mov         ax,dx   ; limit to dx
+                        mov         dx,cx   ; limit to cx
                         jmp         .shift
 .lessmax                mov         dx,ax   ; limit to ax
                         ; reduce exponent by amount
