@@ -86,7 +86,7 @@ TKM_HASHSIZE            equ         1000
                         global      tok_getch,tok_putb,tok_putq,detok_putch
                         extern      xalloc,printf
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
-                        extern      tok_rdamp
+                        extern      tok_rdamp,tok_rdnum
                         extern      wcchar,iswspace,iswlower,towupper
 
 ; ---------------------------------------------------------------------------
@@ -403,12 +403,44 @@ detok_putch             enter       0,0
                         ;
 tok_main                enter       0,0
                         call        tok_init
-                        ; test: read and print based number
+                        ; tokenization loop
+                        ; examine next character
+.tokloop                call        tok_getch
+                        cmp         rax,-1
+                        je          .end
+                        ; check character for the token class it belongs to
+                        cmp         rax,'0'
+                        jb          .notdigit
+                        cmp         rax,'9'
+                        ja          .notdigit
+                        ; a digit: tokenize as base 10 number
+                        mov         [sourceputback],rax
+                        mov         rdi,10
+                        call        tok_rdnum
+                        ; numbers are stored with a 01 prefix, followed by the
+                        ; number base (2/8/10/16), then followed by 8 bytes of
+                        ; IEEE 64 bit floating-point. NOTE that tokenized form
+                        ; uses network byte order (big endian).
+                        mov         rdi,0x01
+                        call        tok_putb
+                        mov         rdi,10
+                        call        tok_putb
+                        mov         rdi,rax
+                        call        tok_putq
+                        ; done
+                        jmp         .tokloop
+                        ; & ampersand
+.notdigit               cmp         rax,'&'
+                        jne         .notamp
+                        ; number with specified number base
                         call        tok_rdamp
+                        jmp         .tokloop
+                        ;
+.notamp:
 
 
 
-                        leave
+.end                    leave
                         ret
 
 ; ---------------------------------------------------------------------------

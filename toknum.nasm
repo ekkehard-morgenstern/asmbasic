@@ -60,6 +60,7 @@ tok_rdamp               enter       0x10,0
                         call        tok_putb
 .end                    leave
                         ret
+
 .beg_hex                mov         rdi,16
                         jmp         .beg_read
 .beg_dec                mov         rdi,10
@@ -67,6 +68,7 @@ tok_rdamp               enter       0x10,0
 .beg_oct                mov         rdi,8
                         jmp         .beg_read
 .beg_bin                mov         rdi,2
+
 .beg_read               mov         [rbp-0x10],rdi
                         call        tok_rdnum
                         mov         [rbp-0x08],rax
