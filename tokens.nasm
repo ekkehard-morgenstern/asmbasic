@@ -28,7 +28,6 @@
 
 LINEBUF_BYTES           equ         16384
 TOKENPAD_BYTES          equ         32768
-DIGITBUF_BYTES          equ         512
 IDENTBUF_BYTES          equ         1024
 STRLITBUF_BYTES         equ         1024
 
@@ -319,6 +318,8 @@ tokenize                enter       0,0
 tok_init                enter       0,0
                         call        uclineininit
                         mov         qword [sourceputback],-1
+                        lea         rax,[tokenpad]
+                        mov         [tokenpadptr],rax
                         leave
                         ret
 
@@ -343,7 +344,14 @@ tok_getch               enter       0,0
                         ; put token byte in rdi to token buffer
                         ; TBD
 tok_putb                enter       0,0
-                        leave
+                        mov         rax,[tokenpadptr]
+                        cmp         rax,tokenpadend
+                        jae         .end
+                        xchg        rdi,rax
+                        mov         [rdi],al
+                        inc         rdi
+                        mov         [tokenpadptr],rdi
+.end                    leave
                         ret
 
 ; ---------------------------------------------------------------------------
@@ -401,46 +409,118 @@ detok_putch             enter       0,0
                         ; rdi - pointer to text
                         ; rsi - size of text, in bytes
                         ;
-tok_main                enter       0,0
+                        ; result:
+                        ; rax - boolean result (-1 = ok, 0 = error)
+                        ;
+tok_main                enter       0x10,0
                         call        tok_init
+
                         ; tokenization loop
                         ; examine next character
 .tokloop                call        tok_getch
                         cmp         rax,-1
-                        je          .end
+                        je          .succeed
+
                         ; check character for the token class it belongs to
                         cmp         rax,'0'
                         jb          .notdigit
                         cmp         rax,'9'
                         ja          .notdigit
+
                         ; a digit: tokenize as base 10 number
                         mov         [sourceputback],rax
                         mov         rdi,10
                         call        tok_rdnum
+
                         ; numbers are stored with a 01 prefix, followed by the
                         ; number base (2/8/10/16), then followed by 8 bytes of
                         ; IEEE 64 bit floating-point. NOTE that tokenized form
                         ; uses network byte order (big endian).
+                        mov         [rbp-0x08],rax
                         mov         rdi,0x01
                         call        tok_putb
                         mov         rdi,10
                         call        tok_putb
-                        mov         rdi,rax
+                        mov         rdi,[rbp-0x08]
                         call        tok_putq
                         ; done
                         jmp         .tokloop
+
                         ; & ampersand
 .notdigit               cmp         rax,'&'
                         jne         .notamp
+
                         ; number with specified number base
                         call        tok_rdamp
                         jmp         .tokloop
-                        ;
-.notamp:
 
+                        ; "..." string literals
+.notamp                 cmp         rax,'"'
+                        jne         .notquote
 
+                        ; quoted string literal
+                        call        tok_strlit
+                        jmp         .tokloop
 
-.end                    leave
+.notquote:
+
+                        ; unknown token: fail
+                        jmp         .fail
+
+.succeed                mov         rax,-1
+                        ; store a terminating NUL token to signify end of line.
+.end                    mov         rdi,[tokenpadptr]
+                        mov         byte [rdi],0
+                        leave
+                        ret
+
+.fail                   xor         rax,rax
+                        jmp         .end
+
+; ---------------------------------------------------------------------------
+
+tok_strlit              enter       0x20,0
+                        mov         [rbp-0x10],rbx
+                        mov         [rbp-0x18],r12
+
+                        lea         rdi,[strlitbuf]
+                        mov         rsi,strlitbufsize
+                        call        uclineoutinit
+
+.fetchloop              call        tok_getch
+                        cmp         rax,-1
+                        je          .end
+                        cmp         rax,'"'
+                        je          .end
+
+                        mov         rdi,rax
+                        call        ucputcp
+                        mov         [rbp-0x08],rax
+
+                        ; string literals are encoded as 0xFF followed by
+                        ; a two-byte length and then the actual string data
+                        ; (NOT NUL terminated)
+
+.end                    mov         rdi,0xff
+                        call        tok_putb
+                        movzx       rdi,byte [rbp-0x07]
+                        call        tok_putb
+                        movzx       rdi,byte [rbp-0x08]
+                        call        tok_putb
+
+                        lea         rbx,[strlitbuf]
+                        mov         r12,[rbp-0x08]
+
+.storeloop              or          r12,r12
+                        jz          .storeend
+                        movzx       rdi,byte [rbx]
+                        call        tok_putb
+                        dec         r12
+                        jmp         .storeloop
+
+.storeend               mov         r12,[rbp-0x18]
+                        mov         rbx,[rbp-0x10]
+                        leave
                         ret
 
 ; ---------------------------------------------------------------------------
@@ -751,8 +831,8 @@ linebuflen              resq        1
 sourceputback           resq        1
 tokenpad                resq        TOKENPAD_BYTES/8
 tokenpadsize            equ         $-tokenpad
-digitbuf                resq        DIGITBUF_BYTES/8
-digitbufsize            equ         $-digitbuf
+tokenpadend             equ         $-1
+tokenpadptr             resq        1
 identbuf                resq        IDENTBUF_BYTES/8
 identbufsize            equ         $-identbuf
 strlitbuf               resq        STRLITBUF_BYTES/8

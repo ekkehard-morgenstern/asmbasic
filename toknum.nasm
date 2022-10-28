@@ -81,7 +81,7 @@ tok_rdamp               enter       0x10,0
                         call        tok_putb
                         mov         rdi,[rbp-0x10]
                         call        tok_putb
-                        mov         rdi,rax
+                        mov         rdi,[rbp-0x08]
                         call        tok_putq
 
                         jmp         .end
