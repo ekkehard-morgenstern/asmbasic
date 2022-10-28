@@ -479,6 +479,15 @@ tok_main                enter       0x10,0
 
 ; ---------------------------------------------------------------------------
 
+                        ; SYNOPSIS:
+                        ; tok_strlit() simply tokenizes a text string literal.
+                        ; It may contain any Unicode code point, but its maximum
+                        ; size is limited by the STRLITBUFSIZE constant. Also,
+                        ; STRLITBUFSIZE cannot be longer than 65535 bytes, since
+                        ; string literals are encoded as FF, followed by two
+                        ; bytes of length, in network byte order, followed by
+                        ; the text string in UTF-8 format.
+
 tok_strlit              enter       0x20,0
                         mov         [rbp-0x10],rbx
                         mov         [rbp-0x18],r12
@@ -509,6 +518,113 @@ tok_strlit              enter       0x20,0
                         call        tok_putb
 
                         lea         rbx,[strlitbuf]
+                        mov         r12,[rbp-0x08]
+
+.storeloop              or          r12,r12
+                        jz          .storeend
+                        movzx       rdi,byte [rbx]
+                        call        tok_putb
+                        dec         r12
+                        jmp         .storeloop
+
+.storeend               mov         r12,[rbp-0x18]
+                        mov         rbx,[rbp-0x10]
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; SYNOPSIS:
+                        ;
+                        ; tok_ident() tokenizes identifiers, keywords, etc.
+                        ; It may contain any Unicode code point, but its maximum
+                        ; size is limited by the IDENTBUFSIZE constant. Also,
+                        ; IDENTBUFSIZE cannot be longer than 65535 bytes, since
+                        ; identifiers are encoded as FE, followed by two
+                        ; bytes of length, in network byte order, followed by
+                        ; the name of the identifier in UTF-8 format.
+                        ;
+                        ; If an identifier turns out to be a builtin keyword,
+                        ; the keyword's byte sequence is emitted instead.
+                        ;
+                        ; parameters:
+                        ;   rdi - initial character
+
+tok_ident               enter       0x20,0
+                        mov         [rbp-0x10],rbx
+                        mov         [rbp-0x18],r12
+                        mov         [rbp-0x20],rdi
+
+                        lea         rdi,[identbuf]
+                        mov         rsi,identbufsize
+                        call        uclineoutinit
+
+                        mov         rdi,[rbp-0x20]
+.storechar              call        ucputcp
+                        mov         [rbp-0x08],rax
+
+.fetchloop              call        tok_getch
+                        cmp         rax,-1
+                        je          .end
+
+                        ; a space terminates the identifier
+                        cmp         rax,' '
+                        je          .notspace
+                        mov         [sourceputback],rax
+                        jmp         .end
+
+                        ; a sigil character terminates the identifier
+.notspace               cmp         rax,'$'
+                        je          .sigil
+                        cmp         rax,'%'
+                        je          .sigil
+                        cmp         rax,'&'
+                        je          .sigil
+                        cmp         rax,'!'
+                        je          .sigil
+                        cmp         rax,'#'
+                        je          .sigil
+                        cmp         rax,'('
+                        je          .lparen
+
+                        mov         rdi,rax
+                        jmp         .storechar
+
+                        ; we have a sigil: store the character
+.sigil                  mov         rdi,rax
+                        call        ucputcp
+                        mov         [rbp-0x08],rax
+
+                        ; now, check for left parenthesis (function/array
+                        ; application)
+                        call        tok_getch
+                        cmp         rax,-1
+                        je          .end
+
+                        cmp         rax,'('
+                        jne         .notlparen
+
+                        ; we have a left parenthesis: store it & finish
+.lparen                 mov         rdi,rax
+                        call        ucputcp
+                        mov         [rbp-0x08],rax
+                        jmp         .end
+
+                        ; not a left parenthesis: put codepoint back
+.notlparen              mov         [sourceputback],rax
+
+                        ; identifiers are encoded as 0xFE followed by
+                        ; a two-byte length and then the actual name
+                        ; (NOT NUL terminated)
+
+.end                    mov         rdi,0xfe
+                        call        tok_putb
+                        movzx       rdi,byte [rbp-0x07]
+                        call        tok_putb
+                        movzx       rdi,byte [rbp-0x08]
+                        call        tok_putb
+
+                        lea         rbx,[identbuf]
                         mov         r12,[rbp-0x08]
 
 .storeloop              or          r12,r12

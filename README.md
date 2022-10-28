@@ -10,6 +10,8 @@ Code in this repository can change and be restructured without prior warning.
 To compile this package, you need to install a C development environment first, and then NASM (the Netwide Assembler).
 On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt install build-essential nasm" to accomplish that.
 
+After making sure you have the tools, type "make -B" to build the program.
+
 ## Playing Around
 
 Since the code is currently in its initial development stages, it might be in a state that cannot be used (like, at all), at any given time.
