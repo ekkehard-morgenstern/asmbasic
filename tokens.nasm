@@ -307,6 +307,31 @@ tokenize                enter       0,0
                         lea         rdi,[linebuf]
                         mov         rsi,[linebuflen]
                         call        tok_main
+                        call        tok_dumptokbuf
+                        leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; dump the token buffer (DEBUG utility)
+tok_dumptokbuf          enter       0x10,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        lea         rbx,[tokenpad]
+                        mov         r12,[tokenpadptr]
+.dumploop               cmp         rbx,r12
+                        jae         .end
+                        lea         rdi,[tokdump_fmt]
+                        movzx       rsi,byte [rbx]
+                        xor         al,al
+                        call        printf
+                        inc         rbx
+                        jmp         .dumploop
+.end                    lea         rdi,[tokdump_lf]
+                        xor         al,al
+                        call        printf
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
                         leave
                         ret
 
@@ -698,6 +723,8 @@ tok_strlit              enter       0x10,0
                         call        ucputcp
                         mov         [rbp-0x08],rax
 
+                        jmp         .fetchloop
+
                         ; string literals are encoded as 0xFF followed by
                         ; a two-byte length and then the actual string data
                         ; (NOT NUL terminated)
@@ -744,18 +771,49 @@ tok_ident               enter       0x10,0
 .storechar              call        ucputcp
                         mov         [rbp-0x08],rax
 
-.fetchloop              call        tok_getch
+                        call        tok_getch
                         cmp         rax,-1
                         je          .end
 
-                        ; a space terminates the identifier
+                        ; a space or operator character
+                        ; terminates the identifier (exclusively)
                         cmp         rax,' '
-                        je          .notspace
-                        mov         [sourceputback],rax
+                        je          .terminate
+                        cmp         rax,'"'
+                        je          .terminate
+                        cmp         rax,'<'
+                        je          .terminate
+                        cmp         rax,'='
+                        je          .terminate
+                        cmp         rax,'>'
+                        je          .terminate
+                        cmp         rax,'*'
+                        je          .terminate
+                        cmp         rax,'/'
+                        je          .terminate
+                        cmp         rax,'+'
+                        je          .terminate
+                        cmp         rax,'-'
+                        je          .terminate
+                        cmp         rax,'^'
+                        je          .terminate
+                        cmp         rax,','
+                        je          .terminate
+                        cmp         rax,';'
+                        je          .terminate
+                        cmp         rax,':'
+                        je          .terminate
+                        cmp         rax,')'
+                        je          .terminate
+
+                        jmp         .continue
+
+.terminate              mov         [sourceputback],rax
                         jmp         .end
 
                         ; a sigil character terminates the identifier
-.notspace               cmp         rax,'$'
+                        ; (inclusively)
+.continue               cmp         rax,'$'
                         je          .sigil
                         cmp         rax,'%'
                         je          .sigil
@@ -1091,6 +1149,9 @@ dtm_namfmt              db          " %-*.*s",0
 dtm_lf                  db          10,0
 
 dlb_fmt                 db          "line buf: <<%-*.*s>>",10,0
+
+tokdump_fmt             db          " %02X",0
+tokdump_lf              db          10,0
 
                         align       8,db 0
 
