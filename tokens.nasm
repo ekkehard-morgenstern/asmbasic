@@ -342,7 +342,6 @@ tok_getch               enter       0,0
 ; ---------------------------------------------------------------------------
 
                         ; put token byte in rdi to token buffer
-                        ; TBD
 tok_putb                enter       0,0
                         mov         rax,[tokenpadptr]
                         cmp         rax,tokenpadend
@@ -350,6 +349,33 @@ tok_putb                enter       0,0
                         xchg        rdi,rax
                         mov         [rdi],al
                         inc         rdi
+                        mov         [tokenpadptr],rdi
+.end                    leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; put string in rdi to token buffer
+                        ; rdi - string pointer
+                        ; rsi - length, in bytes
+tok_puts                enter       0,0
+                        mov         rcx,rsi
+                        mov         rsi,rdi
+                        ; check if there's enough room to store it
+                        mov         rdi,[tokenpadptr]
+                        add         rdi,rcx
+                        cmp         rdi,tokenpadend
+                        jb          .copy
+                        ; no: compute number of available bytes
+                        mov         rcx,tokenpadend
+                        sub         rcx,[tokenpadptr]
+                        ; check if size is zero
+.copy                   test        rcx,rcx
+                        jz          .end
+                        ; copy the string
+                        cld
+                        mov         rdi,[tokenpadptr]
+                        rep         movsb
                         mov         [tokenpadptr],rdi
 .end                    leave
                         ret
@@ -421,6 +447,9 @@ tok_main                enter       0x10,0
                         cmp         rax,-1
                         je          .succeed
 
+                        cmp         rax,' '     ; skip spaces
+                        je          .tokloop
+
                         ; check character for the token class it belongs to
                         cmp         rax,'0'
                         jb          .notdigit
@@ -462,10 +491,175 @@ tok_main                enter       0x10,0
                         call        tok_strlit
                         jmp         .tokloop
 
-.notquote:
+                        ; check for operators: <, <=, <>, >, >=, =
+                        ; operators are encoded as 02, followed by code
+.notquote               cmp         rax,'<'
+                        jne         .notless
 
-                        ; unknown token: fail
-                        jmp         .fail
+                        call        tok_getch
+                        cmp         rax,-1
+                        je          .lessend
+                        cmp         rax,'='
+                        je          .lesseq
+                        cmp         rax,'>'
+                        je          .noteq
+                        mov         [sourceputback],rax
+
+.lessend                mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x00    ; '<'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.lesseq                 mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x01    ; '<='
+                        call        tok_putb
+                        jmp         .tokloop
+
+.noteq                  mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x02    ; '<>'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notless                cmp         rax,'>'
+                        jne         .notgreater
+
+                        call        tok_getch
+                        cmp         rax,-1
+                        je          .greaterend
+                        cmp         rax,'='
+                        je          .greatereq
+                        cmp         rax,'<'
+                        je          .noteq      ; '><', same as '<>'
+                        mov         [sourceputback],rax
+
+.greaterend             mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x03    ; '>'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.greatereq              mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x04    ; '>='
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notgreater             cmp         rax,'='
+                        jne         .notequal
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x05    ; '='
+                        call        tok_putb
+                        jmp         .tokloop
+
+                        ; more operators: (, ), ,, ;, :
+
+.notequal               cmp         rax,'('
+                        jne         .notlparen
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x06    ; '('
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notlparen              cmp         rax,')'
+                        jne         .notrparen
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x07    ; ')'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notrparen              cmp         rax,','
+                        jne         .notcomma
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x08    ; ','
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notcomma               cmp         rax,';'
+                        jne         .notsemicolon
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x09    ; ';'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notsemicolon           cmp         rax,':'
+                        jne         .notcolon
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0a    ; ':'
+                        call        tok_putb
+                        jmp         .tokloop
+
+                        ; arithmetic operators: +, -, *, **, /, ^
+.notcolon               cmp         rax,'+'
+                        jne         .notplus
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0b    ; '+'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notplus                cmp         rax,'-'
+                        jne         .notminus
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0c    ; '-'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notminus               cmp         rax,'*'
+                        jne         .notasterisk
+
+                        call        tok_getch
+                        cmp         rax,-1
+                        je          .asteriskend
+                        cmp         rax,'*'
+                        je          .power      ; '**', same as '^'
+                        mov         [sourceputback],rax
+
+.asteriskend            mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0d    ; '*'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notasterisk            cmp         rax,'/'
+                        jne         .notslash
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0e    ; '/'
+                        call        tok_putb
+                        jmp         .tokloop
+
+.notslash               cmp         rax,'^'
+                        jne         .notpower
+
+.power                  mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x0f    ; '^'
+                        call        tok_putb
+                        jmp         .tokloop
+
+                        ; everything else is regarded as an identifier
+.notpower               mov         rdi,rax
+                        call        tok_ident
+                        jmp         .tokloop
 
 .succeed                mov         rax,-1
                         ; store a terminating NUL token to signify end of line.
@@ -488,9 +682,7 @@ tok_main                enter       0x10,0
                         ; bytes of length, in network byte order, followed by
                         ; the text string in UTF-8 format.
 
-tok_strlit              enter       0x20,0
-                        mov         [rbp-0x10],rbx
-                        mov         [rbp-0x18],r12
+tok_strlit              enter       0x10,0
 
                         lea         rdi,[strlitbuf]
                         mov         rsi,strlitbufsize
@@ -516,20 +708,11 @@ tok_strlit              enter       0x20,0
                         call        tok_putb
                         movzx       rdi,byte [rbp-0x08]
                         call        tok_putb
+                        lea         rdi,[strlitbuf]
+                        mov         rsi,[rbp-0x08]
+                        call        tok_puts
 
-                        lea         rbx,[strlitbuf]
-                        mov         r12,[rbp-0x08]
-
-.storeloop              or          r12,r12
-                        jz          .storeend
-                        movzx       rdi,byte [rbx]
-                        call        tok_putb
-                        dec         r12
-                        jmp         .storeloop
-
-.storeend               mov         r12,[rbp-0x18]
-                        mov         rbx,[rbp-0x10]
-                        leave
+.storeend               leave
                         ret
 
 ; ---------------------------------------------------------------------------
@@ -550,16 +733,14 @@ tok_strlit              enter       0x20,0
                         ; parameters:
                         ;   rdi - initial character
 
-tok_ident               enter       0x20,0
-                        mov         [rbp-0x10],rbx
-                        mov         [rbp-0x18],r12
-                        mov         [rbp-0x20],rdi
+tok_ident               enter       0x10,0
+                        mov         [rbp-0x10],rdi
 
                         lea         rdi,[identbuf]
                         mov         rsi,identbufsize
                         call        uclineoutinit
 
-                        mov         rdi,[rbp-0x20]
+                        mov         rdi,[rbp-0x10]
 .storechar              call        ucputcp
                         mov         [rbp-0x08],rax
 
@@ -623,20 +804,11 @@ tok_ident               enter       0x20,0
                         call        tok_putb
                         movzx       rdi,byte [rbp-0x08]
                         call        tok_putb
+                        lea         rdi,[identbuf]
+                        mov         rsi,[rbp-0x08]
+                        call        tok_puts
 
-                        lea         rbx,[identbuf]
-                        mov         r12,[rbp-0x08]
-
-.storeloop              or          r12,r12
-                        jz          .storeend
-                        movzx       rdi,byte [rbx]
-                        call        tok_putb
-                        dec         r12
-                        jmp         .storeloop
-
-.storeend               mov         r12,[rbp-0x18]
-                        mov         rbx,[rbp-0x10]
-                        leave
+.storeend               leave
                         ret
 
 ; ---------------------------------------------------------------------------
