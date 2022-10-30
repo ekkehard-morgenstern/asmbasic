@@ -35,7 +35,8 @@ LBUF_SIZE               equ         8192
                         extern      init_tokenizer
                         extern      dump_tokenmap
                         extern      stdin,fgets,strlen
-                        extern      tokenize
+                        extern      tokenize,detokenize,tok_dumplinebuf
+                        extern      tokenpad,tokenpadptr
 
 main                    enter       0,0
                         call        init_locale
@@ -67,6 +68,13 @@ tokenizer_test          enter       0,0
                         lea         rdi,[lbuf]
                         mov         rsi,rax
                         call        tokenize
+                        ; TEST: detokenize and output
+                        lea         rdi,[tokenpad]
+                        mov         rsi,[tokenpadptr]
+                        sub         rsi,rdi
+                        xor         rdx,rdx
+                        call        detokenize
+                        call        tok_dumplinebuf
                         jmp         .lineloop
 .end                    leave
                         ret

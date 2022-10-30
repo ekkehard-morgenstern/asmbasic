@@ -83,6 +83,7 @@ TKM_HASHSIZE            equ         1000
 
                         global      init_tokenizer,dump_tokenmap,tokenize
                         global      tok_getch,tok_putb,tok_putq,detok_putch
+                        global      tok_dumplinebuf,detokenize
                         extern      xalloc,printf
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         extern      tok_rdamp,tok_rdnum, detok_wrnum
@@ -1140,6 +1141,7 @@ detokenize              enter       0x40,0
 .strlitloop             call        ucgetcp
                         cmp         rax,-1
                         je          .strlitend
+                        mov         rdi,rax
                         call        detok_putch
                         jnz         .strlitloop
 
@@ -1172,6 +1174,7 @@ detokenize              enter       0x40,0
 .identloop              call        ucgetcp
                         cmp         rax,-1
                         je          .identend
+                        mov         rdi,rax
                         call        detok_putch
                         jnz         .identloop
 
@@ -1287,11 +1290,49 @@ detokenize              enter       0x40,0
                         call        detok_putch
                         jmp         .detokloop
 
-.notoperator:
-
-
-.detokend:
-                        mov         r14,[rbp-0x38]
+                        ; everything else could be a keyword
+                        ; look the following two bytes up in the reverse hash
+.notoperator            mov         rdi,rbx
+                        mov         rsi,2
+                        call        computehash
+                        ; get first address in hash table that has the same
+                        ; hash value
+                        lea         r13,[g_tokenmap]
+                        mov         rdx,[r13+tkm_revhash+rax*8] ; tokendesc ptr
+.nextentry              test        rdx,rdx
+                        jz          .notfound
+                        ; check encoding length; skip if not equal
+                        movzx       rcx,byte [rdx+td_enclen]
+                        cmp         rcx,2
+                        je          .samelength
+                        mov         rdx,[rdx+td_nextrev]
+                        jmp         .nextentry
+                        ; if same length, compare encodings
+.samelength             lea         rsi,[rdx+tokendesc_size]
+                        movzx       rax,byte [rdx+td_namelen]
+                        add         rsi,rax
+                        mov         rdi,rbx
+                        cld
+                        repe        cmpsb
+                        jrcxz       .found
+                        mov         rdx,[rdx+td_nextrev]
+                        jmp         .nextentry
+                        ; after successful comparison, RSI should point to
+                        ; the token name to be emitted
+.found                  lea         r13,[rdx+tokendesc_size]
+                        movzx       r14,byte [rdx+td_namelen]
+                        mov         rdi,' '
+                        call        detok_putch
+.storeloop              movzx       rdi,byte [r13]
+                        call        detok_putch
+                        inc         r13
+                        dec         r14
+                        jnz         .storeloop
+                        add         rbx,2
+                        sub         r12,2
+                        jmp         .detokloop
+.notfound:
+.detokend               mov         r14,[rbp-0x38]
                         mov         r13,[rbp-0x30]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
@@ -1498,7 +1539,7 @@ firstmapentry           dq          0
 ; TLS block-structured storage section
 
                         section     .bss
-                        global      sourceputback
+                        global      sourceputback,tokenpad,tokenpadptr
 
 
 g_tokenmap              resq        tokenmap_size/8
