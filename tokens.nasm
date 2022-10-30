@@ -883,7 +883,7 @@ tok_ident               enter       0x20,0
                         lea         rdi,[identbuf]
                         cld
                         repe        cmpsb
-                        jrcxz       .found
+                        je          .found
                         mov         rdx,[rdx+td_nexthash]
                         jmp         .nextentry
                         ; after successful comparison, RSI should point to
@@ -1189,7 +1189,17 @@ detokenize              enter       0x40,0
                         mov         al,[rbx+1]
                         add         rbx,2
                         sub         r12,2
+                        mov         r13,rax
 
+                        cmp         al,0x08
+                        je          .comma
+
+                        ; except before comma, output blank character first
+                        mov         rdi,' '
+                        call        detok_putch
+                        mov         rax,r13
+
+                        ; then, output operator character(s)
                         cmp         al,0x00
                         je          .lower
                         cmp         al,0x01
@@ -1206,8 +1216,6 @@ detokenize              enter       0x40,0
                         je          .lparen
                         cmp         al,0x07
                         je          .rparen
-                        cmp         al,0x08
-                        je          .comma
                         cmp         al,0x09
                         je          .semicolon
                         cmp         al,0x0a
@@ -1314,7 +1322,7 @@ detokenize              enter       0x40,0
                         mov         rdi,rbx
                         cld
                         repe        cmpsb
-                        jrcxz       .found
+                        je          .found
                         mov         rdx,[rdx+td_nextrev]
                         jmp         .nextentry
                         ; after successful comparison, RSI should point to

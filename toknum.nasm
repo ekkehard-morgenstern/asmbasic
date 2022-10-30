@@ -1054,6 +1054,13 @@ detok_wrnum             enter       0x80,0
                         stosb
                         ; now, finally, copy result string to output buffer
 .complete               lea         r12,[rbp-0x70]
+                        ; workaround: check if there's a leading zero
+                        ; TBD: Fix bug
+                        cmp         byte [r12],'0'
+                        jne         .outfixed
+                        cmp         byte [r12+1],0
+                        je          .outfixed
+                        inc         r12
                         jmp         .outfixed
 
 .done                   mov         rbx,[rbp-0x78]
