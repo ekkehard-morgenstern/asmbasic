@@ -85,7 +85,7 @@ TKM_HASHSIZE            equ         1000
                         global      tok_getch,tok_putb,tok_putq,detok_putch
                         extern      xalloc,printf
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
-                        extern      tok_rdamp,tok_rdnum
+                        extern      tok_rdamp,tok_rdnum, detok_wrnum
                         extern      wcchar,iswspace,iswlower,towupper
 
 ; ---------------------------------------------------------------------------
@@ -431,9 +431,9 @@ tok_putq                enter       0x10,0
 ; ---------------------------------------------------------------------------
 
                         ; put code point in rdi to detokenization buffer
-                        ; TBD
 detok_putch             enter       0,0
                         call        ucputcp
+                        mov         [linebuflen],rax
                         leave
                         ret
 
@@ -1008,10 +1008,293 @@ tok_prepare             enter       0,0
 
 ; ---------------------------------------------------------------------------
 
-                        ; rdi [rbp-0x08] - address
-                        ; rsi [rbp-0x10] - size of encoded text, in bytes
-                        ;     [rbp-0x18] - RBX backup
-detokenize              enter       0,0
+                        ; SYNOPSIS:
+                        ; Detokenization decodes a tokenized line back into
+                        ; the line buffer.
+                        ;
+                        ; parameters:
+                        ;   rdi - address
+                        ;   rsi - size of encoded text, in bytes
+                        ;   rdx - flags
+                        ;
+                        ; TODO: support syntax highlighting through flags
+                        ;
+                        ; local variables:
+                        ;   [rbp-0x08]  RBX backup
+                        ;   [rbp-0x10]  R12 backup
+                        ;   [rbp-0x18]  RDI backup (token buffer address)
+                        ;   [rbp-0x20]  RSI backup (token buffer size)
+                        ;   [rbp-0x28]  RDX backup (flags)
+                        ;
+detokenize              enter       0x40,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],rdi
+                        mov         [rbp-0x20],rsi
+                        mov         [rbp-0x28],rdx
+                        mov         [rbp-0x30],r13
+                        mov         [rbp-0x38],r14
+
+                        lea         rdi,[linebuf]
+                        mov         rsi,linebufsize
+                        xor         rax,rax
+                        mov         [linebuflen],rax
+                        call        uclineoutinit
+
+                        mov         rbx,[rbp-0x18]
+                        mov         r12,[rbp-0x20]
+
+.detokloop              test        r12,r12
+                        jle         .detokend
+
+                        mov         al,[rbx]
+                        test        al,al
+                        jz          .detokend
+
+                        cmp         al,0x01
+                        jne         .notnumber
+                        mov         al,[rbx+1]
+                        cmp         al,10
+                        je          .knownbase
+                        cmp         al,16
+                        je          .knownbase
+                        cmp         al,8
+                        je          .knownbase
+                        cmp         al,2
+                        je          .knownbase
+                        ; unknown base?
+                        jmp         .detokend
+                        ; read number
+.knownbase              movzx       rsi,al
+                        mov         al,[rbx+2]
+                        shl         rax,8
+                        mov         al,[rbx+3]
+                        shl         rax,8
+                        mov         al,[rbx+4]
+                        shl         rax,8
+                        mov         al,[rbx+5]
+                        shl         rax,8
+                        mov         al,[rbx+6]
+                        shl         rax,8
+                        mov         al,[rbx+7]
+                        shl         rax,8
+                        mov         al,[rbx+8]
+                        shl         rax,8
+                        mov         al,[rbx+9]
+                        mov         rdi,rax
+                        mov         r13,rdi
+                        mov         r14,rsi
+                        ; output single space as separator
+                        mov         rdi,' '
+                        call        detok_putch
+                        ; output &H,&O or &B for hex/oct/bin
+                        cmp         r14,16
+                        jne         .nothex
+                        mov         rdi,'&'
+                        call        detok_putch
+                        mov         rdi,'H'
+                        call        detok_putch
+                        jmp         .outputnumber
+.nothex                 cmp         r14,8
+                        jne         .notoct
+                        mov         rdi,'&'
+                        call        detok_putch
+                        mov         rdi,'O'
+                        call        detok_putch
+                        jmp         .outputnumber
+.notoct                 cmp         r14,2
+                        jne         .outputnumber
+                        mov         rdi,'&'
+                        call        detok_putch
+                        mov         rdi,'B'
+                        call        detok_putch
+                        ; detokenize number
+.outputnumber           mov         rdi,r13
+                        mov         rsi,r14
+                        call        detok_wrnum
+                        ; go to next token
+                        add         rbx,10
+                        sub         r12,10
+                        jmp         .detokloop
+
+.notnumber              cmp         al,0xff
+                        jne         .notstrlit
+
+                        ; string literal
+
+                        mov         rdi,'"'
+                        call        detok_putch
+
+                        ; get length
+                        mov         ah,[rbx+1]
+                        mov         al,[rbx+2]
+                        movzx       r13,ax
+                        add         rbx,3
+                        sub         r12,3
+
+                        ; initialize unicode input
+                        mov         rdi,rbx
+                        mov         rsi,r13
+                        call        uclineininit
+
+.strlitloop             call        ucgetcp
+                        cmp         rax,-1
+                        je          .strlitend
+                        call        detok_putch
+                        jnz         .strlitloop
+
+                        ; finish string literal
+.strlitend              add         rbx,r13
+                        sub         r12,r13
+                        mov         rdi,'"'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.notstrlit              cmp         al,0xfe
+                        jne         .notident
+
+                        ; get length
+                        mov         ah,[rbx+1]
+                        mov         al,[rbx+2]
+                        movzx       r13,ax
+                        add         rbx,3
+                        sub         r12,3
+
+                        ; output single space as separator
+                        mov         rdi,' '
+                        call        detok_putch
+
+                        ; initialize unicode input
+                        mov         rdi,rbx
+                        mov         rsi,r13
+                        call        uclineininit
+
+.identloop              call        ucgetcp
+                        cmp         rax,-1
+                        je          .identend
+                        call        detok_putch
+                        jnz         .identloop
+
+                        ; finish identifier
+.identend               add         rbx,r13
+                        sub         r12,r13
+                        jmp         .detokloop
+
+.notident               cmp         al,0x02
+                        jne         .notoperator
+
+                        mov         al,[rbx+1]
+                        add         rbx,2
+                        sub         r12,2
+
+                        cmp         al,0x00
+                        je          .lower
+                        cmp         al,0x01
+                        je          .lowerorequal
+                        cmp         al,0x02
+                        je          .notequal
+                        cmp         al,0x03
+                        je          .greater
+                        cmp         al,0x04
+                        je          .greaterorequal
+                        cmp         al,0x05
+                        je          .equal
+                        cmp         al,0x06
+                        je          .lparen
+                        cmp         al,0x07
+                        je          .rparen
+                        cmp         al,0x08
+                        je          .comma
+                        cmp         al,0x09
+                        je          .semicolon
+                        cmp         al,0x0a
+                        je          .colon
+                        cmp         al,0x0b
+                        je          .plus
+                        cmp         al,0x0c
+                        je          .minus
+                        cmp         al,0x0d
+                        je          .asterisk
+                        cmp         al,0x0e
+                        je          .slash
+                        cmp         al,0x0f
+                        je          .power
+
+                        ; unknown
+                        jmp         .detokend
+
+.lower                  mov         rdi,'<'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.lowerorequal           mov         rdi,'<'
+                        call        detok_putch
+
+.equal                  mov         rdi,'='
+                        call        detok_putch
+                        jmp         .detokloop
+
+.notequal               mov         rdi,'<'
+                        call        detok_putch
+
+.greater                mov         rdi,'>'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.greaterorequal         mov         rdi,'>'
+                        call        detok_putch
+                        mov         rdi,'='
+                        call        detok_putch
+                        jmp         .detokloop
+
+.lparen                 mov         rdi,'('
+                        call        detok_putch
+                        jmp         .detokloop
+
+.rparen                 mov         rdi,')'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.comma                  mov         rdi,','
+                        call        detok_putch
+                        jmp         .detokloop
+
+.semicolon              mov         rdi,';'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.colon                  mov         rdi,':'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.plus                   mov         rdi,'+'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.minus                  mov         rdi,'-'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.asterisk               mov         rdi,'*'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.slash                  mov         rdi,'/'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.power                  mov         rdi,'^'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.notoperator:
+
+
+.detokend:
+                        mov         r14,[rbp-0x38]
+                        mov         r13,[rbp-0x30]
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
                         leave
                         ret
 
