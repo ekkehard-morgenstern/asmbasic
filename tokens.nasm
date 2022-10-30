@@ -759,9 +759,16 @@ tok_strlit              enter       0x10,0
                         ;
                         ; parameters:
                         ;   rdi - initial character
+                        ;
+                        ; local variables:
+                        ;   [rbp-0x08]  name length
+                        ;   [rbp-0x10]  RDI backup (initial code point)
+                        ;   [rbp-0x18]  RBX backup
 
-tok_ident               enter       0x10,0
+tok_ident               enter       0x20,0
                         mov         [rbp-0x10],rdi
+                        mov         [rbp-0x18],rbx
+                        mov         [rbp-0x20],r12
 
                         lea         rdi,[identbuf]
                         mov         rsi,identbufsize
@@ -773,7 +780,7 @@ tok_ident               enter       0x10,0
 
                         call        tok_getch
                         cmp         rax,-1
-                        je          .end
+                        je          .endread
 
                         ; a space or operator character
                         ; terminates the identifier (exclusively)
@@ -809,7 +816,7 @@ tok_ident               enter       0x10,0
                         jmp         .continue
 
 .terminate              mov         [sourceputback],rax
-                        jmp         .end
+                        jmp         .endread
 
                         ; a sigil character terminates the identifier
                         ; (inclusively)
@@ -838,7 +845,7 @@ tok_ident               enter       0x10,0
                         ; application)
                         call        tok_getch
                         cmp         rax,-1
-                        je          .end
+                        je          .endread
 
                         cmp         rax,'('
                         jne         .notlparen
@@ -847,16 +854,52 @@ tok_ident               enter       0x10,0
 .lparen                 mov         rdi,rax
                         call        ucputcp
                         mov         [rbp-0x08],rax
-                        jmp         .end
+                        jmp         .endread
 
                         ; not a left parenthesis: put codepoint back
 .notlparen              mov         [sourceputback],rax
 
+                        ; after reading an identifier, look it up in the keyword
+                        ; hash table to see if it's a keyword
+                        ; now, compute the hash value for the name
+.endread                lea         rdi,[identbuf]
+                        mov         rsi,[rbp-0x08]
+                        call        computehash
+                        ; get first address in hash table that has the same
+                        ; hash value
+                        lea         rbx,[g_tokenmap]
+                        mov         rdx,[rbx+tkm_hash+rax*8]    ; tokendesc ptr
+.nextentry              test        rdx,rdx
+                        jz          .notfound
+                        ; check name length; skip if not equal
+                        movzx       rcx,byte [rdx+td_namelen]
+                        cmp         rcx,[rbp-0x08]
+                        je          .samelength
+                        mov         rdx,[rdx+td_nexthash]
+                        jmp         .nextentry
+                        ; if same length, compare names
+.samelength             lea         rsi,[rdx+tokendesc_size]
+                        lea         rdi,[identbuf]
+                        cld
+                        repe        cmpsb
+                        jrcxz       .found
+                        mov         rdx,[rdx+td_nexthash]
+                        jmp         .nextentry
+                        ; after successful comparison, RSI should point to
+                        ; the token bytes to be emitted
+.found                  mov         rbx,rsi
+                        movzx       r12,byte [rdx+td_enclen]
+.storeloop              movzx       rdi,byte [rbx]
+                        call        tok_putb
+                        inc         rbx
+                        dec         r12
+                        jnz         .storeloop
+                        jmp         .storeend
+
                         ; identifiers are encoded as 0xFE followed by
                         ; a two-byte length and then the actual name
                         ; (NOT NUL terminated)
-
-.end                    mov         rdi,0xfe
+.notfound               mov         rdi,0xfe
                         call        tok_putb
                         movzx       rdi,byte [rbp-0x07]
                         call        tok_putb
@@ -866,7 +909,9 @@ tok_ident               enter       0x10,0
                         mov         rsi,[rbp-0x08]
                         call        tok_puts
 
-.storeend               leave
+.storeend               mov         r12,[rbp-0x20]
+                        mov         rbx,[rbp-0x18]
+                        leave
                         ret
 
 ; ---------------------------------------------------------------------------
