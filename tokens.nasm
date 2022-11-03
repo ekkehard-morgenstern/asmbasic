@@ -84,7 +84,7 @@ TKM_HASHSIZE            equ         1000
                         global      init_tokenizer,dump_tokenmap,tokenize
                         global      tok_getch,tok_putb,tok_putq,detok_putch
                         global      tok_dumplinebuf,detokenize
-                        extern      xalloc,printf
+                        extern      xalloc,pb_putfmt
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         extern      tok_rdamp,tok_rdnum, detok_wrnum
                         extern      wcchar,iswspace,iswlower,towupper
@@ -260,7 +260,7 @@ dump_tokenmap           enter       0x20,0
 .nextindex              lea         rdi,[dtm_ixfmt]
                         mov         rsi,r12
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         ; r13 - token descriptor list pointer
                         mov         r13,[rbx+r12*8]
                         or          r13,r13
@@ -271,7 +271,7 @@ dump_tokenmap           enter       0x20,0
                         mov         rdx,rsi
                         lea         rcx,[r13+tokendesc_size]
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         ; next entry with same hash value
                         mov         r13,[r13+td_nexthash]
                         or          r13,r13
@@ -279,7 +279,7 @@ dump_tokenmap           enter       0x20,0
                         ; print line feed
 .noentry                lea         rdi,[dtm_lf]
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         ; go to next index
                         inc         r12
                         cmp         r12,TKM_HASHSIZE
@@ -325,12 +325,12 @@ tok_dumptokbuf          enter       0x10,0
                         lea         rdi,[tokdump_fmt]
                         movzx       rsi,byte [rbx]
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         inc         rbx
                         jmp         .dumploop
 .end                    lea         rdi,[tokdump_lf]
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
@@ -927,7 +927,7 @@ tok_dumplinebuf         enter       0,0
                         mov         rdx,rsi
                         lea         rcx,[linebuf]
                         xor         al,al
-                        call        printf
+                        call        qword [pb_putfmt]
                         leave
                         ret
 
