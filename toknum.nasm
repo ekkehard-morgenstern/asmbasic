@@ -56,7 +56,9 @@ tok_rdamp               enter       0x10,0
                         cmp         rax,'B'
                         je          .beg_bin
                         mov         [sourceputback],rax
-.no_followup            mov         rdi,'&'
+.no_followup            mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x10
                         call        tok_putb
 .end                    leave
                         ret

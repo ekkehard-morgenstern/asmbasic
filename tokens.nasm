@@ -1193,8 +1193,11 @@ detokenize              enter       0x40,0
 
                         cmp         al,0x08
                         je          .comma
+                        cmp         al,0x09
+                        je          .semicolon
 
-                        ; except before comma, output blank character first
+                        ; except before comma and semicolon, output blank
+                        ; character first
                         mov         rdi,' '
                         call        detok_putch
                         mov         rax,r13
@@ -1216,8 +1219,6 @@ detokenize              enter       0x40,0
                         je          .lparen
                         cmp         al,0x07
                         je          .rparen
-                        cmp         al,0x09
-                        je          .semicolon
                         cmp         al,0x0a
                         je          .colon
                         cmp         al,0x0b
@@ -1230,6 +1231,8 @@ detokenize              enter       0x40,0
                         je          .slash
                         cmp         al,0x0f
                         je          .power
+                        cmp         al,0x10
+                        je          .ampersand
 
                         ; unknown
                         jmp         .detokend
@@ -1295,6 +1298,10 @@ detokenize              enter       0x40,0
                         jmp         .detokloop
 
 .power                  mov         rdi,'^'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.ampersand              mov         rdi,'&'
                         call        detok_putch
                         jmp         .detokloop
 
