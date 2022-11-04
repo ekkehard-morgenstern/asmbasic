@@ -28,28 +28,25 @@
 
                         section     .text
                         global      pb_initstdio
-                        extern      printf,fgets,stdin
+                        extern      std_printf,std_readln,std_color,std_cls
 
 pb_initstdio            enter       0,0
-                        lea         rax,[printf]
+                        lea         rax,[std_printf]
                         mov         [pb_putfmt],rax
-                        lea         rax,[readln]
+                        lea         rax,[std_readln]
                         mov         [pb_readln],rax
-                        leave
-                        ret
-
-                        ; rdi - buffer
-                        ; rsi - bufsiz
-readln                  enter       0,0
-                        mov         byte [rdi],0
-                        mov         rdx,[stdin]
-                        call        fgets
+                        lea         rax,[std_color]
+                        mov         [pb_color],rax
+                        lea         rax,[std_cls]
+                        mov         [pb_cls],rax
                         leave
                         ret
 
                         section     .bss
 
-                        global      pb_putfmt,pb_readln
+                        global      pb_putfmt,pb_readln,pb_color,pb_cls
 
 pb_putfmt               resq        1
 pb_readln               resq        1
+pb_color                resq        1
+pb_cls                  resq        1
