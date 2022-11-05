@@ -41,6 +41,10 @@ SDL_SCREENBUFSIZE       equ         16384
                         extern      SDL_SetMainReady,SDL_Init,SDL_GetError
                         extern      SDL_Quit,SDL_CreateThread,SDL_WaitThread
                         extern      SDL_Delay,SDL_CreateWindow,SDL_DestroyWindow
+                        extern      SDL_CreateRenderer,SDL_DestroyRenderer
+                        extern      SDL_RenderClear,SDL_RenderPresent
+                        extern      SDL_PollEvent,strlen
+                        extern      SDL_StartTextInput,SDL_StopTextInput
 
 sdl_launch              enter       0,0
 
@@ -142,10 +146,11 @@ sdl_cleanupworker       enter       0,0
 sdl_worker              enter       0,0
 
                         lea         rdi,[sdl_windowtitle]
-                        mov         rsi,0x1FFF0000
+                        mov         rsi,0x1FFF0000 ; SDL_WINDOWPOS_UNDEFINED
                         mov         rdx,rsi
                         xor         rcx,rcx
                         mov         r8,rcx
+                        ; SDL_WINDOW_FULLSCREEN_DESKTOP
                         mov         r9,0x00001001
                         call        SDL_CreateWindow
                         test        rax,rax
@@ -163,6 +168,27 @@ sdl_worker              enter       0,0
 
 .window_ok              mov         [sdl_window],rax
 
+                        mov         rdi,rax
+                        mov         rsi,-1
+                        ; SDL_RENDERER_ACCELERATED + SDL_RENDERER_PRESENTVSYNC
+                        mov         rdx,6
+                        call        SDL_CreateRenderer
+                        test        rax,rax
+                        jnz         .renderer_ok
+
+                        call        SDL_GetError
+                        mov         rdi,[stderr]
+                        lea         rsi,[sdl_crtrnderr]
+                        mov         rdx,rax
+                        xor         al,al
+                        call        fprintf
+
+                        mov         rdi,[sdl_window]
+                        call        SDL_DestroyWindow
+                        jmp         .init_failed
+
+.renderer_ok            mov         [sdl_renderer],rax
+
                         ; init complete
                         mov         qword [sdl_init_ok],1
 
@@ -171,11 +197,65 @@ sdl_worker              enter       0,0
                         test        rax,rax
                         jnz         .endmain
 
-                        mov         rdi,50
-                        call        SDL_Delay
+                        mov         rax,[sdl_want_input]
+                        cmp         rax,[sdl_have_input]
+                        je          .eventloop
+
+                        mov         [sdl_have_input],rax
+                        cmp         rax,1
+                        je          .inputon
+
+.inputoff               call        SDL_StopTextInput
+                        jmp         .eventloop
+
+.inputon                call        SDL_StartTextInput
+
+                        ; HANDLE INPUT EVENTS
+.eventloop              lea         rdi,[sdl_eventbuf]
+                        call        SDL_PollEvent
+                        cmp         eax,0
+                        je          .render
+
+                        lea         rax,[sdl_eventbuf]
+                        cmp         dword [rax],0x0100  ; SDL_QUIT
+                        jne         .notquit
+
+                        mov         qword [sdl_worker_doquit],1
+                        jmp         .eventloop
+
+.notquit                cmp         dword [rax],0x0300  ; SDL_KEYDOWN
+                        jne         .notkeydown
+
+                        xor         rdi,rdi
+                        mov         edi,dword [rax+20]  ; kev.keysym.sym
+                        call        sdl_specialkey
+                        jmp         .eventloop
+
+.notkeydown             cmp         dword [rax],0x0303  ; SDL_TEXTINPUT
+                        jne         .nottextinput
+
+                        lea         rdi,[rax+12]
+                        call        sdl_enterinput
+                        jmp         .eventloop
+
+.nottextinput           cmp         dword [rax],0x0302  ; SDL_TEXTEDITING
+                        jne         .nottextediting
+
+                        jmp         .eventloop
+
+.nottextediting         jmp         .eventloop
+
+                        ; RENDER
+.render                 mov         rdi,[sdl_renderer]
+                        call        SDL_RenderClear
+                        mov         rdi,[sdl_renderer]
+                        call        SDL_RenderPresent
+
                         jmp         .mainloop
 
-.endmain                mov         rdi,[sdl_window]
+.endmain                mov         rdi,[sdl_renderer]
+                        call        SDL_DestroyRenderer
+                        mov         rdi,[sdl_window]
                         call        SDL_DestroyWindow
                         jmp         .end
 
@@ -188,6 +268,40 @@ sdl_worker              enter       0,0
                         jmp         .sleeploop
 
 .end                    leave
+                        ret
+
+                        ; special keys
+                        ; rdi - keyboard symbol from SDL
+sdl_specialkey          enter       0,0
+
+                        cmp         rdi,0x1b    ; ESC
+                        je          .escape
+                        cmp         rdi,0x08    ; BACKSPACE
+                        je          .backspace
+                        cmp         rdi,0x0d    ; RETURN
+                        je          .return
+
+.end                    leave
+                        ret
+
+.escape                 mov         qword [sdl_worker_doquit],1
+                        jmp         .end
+
+.backspace              jmp         .end
+
+.return                 jmp         .end
+
+                        ; enter a Unicode character
+                        ; rdi - NUL-terminated string in UTF-8 format
+sdl_enterinput          enter       0x10,0
+                        mov         [rbp-0x08],r12
+                        mov         r12,rdi
+                        call        strlen
+                        mov         rcx,rax
+
+
+                        mov         r12,[rbp-0x08]
+                        leave
                         ret
 
                         ; CLIENT API
@@ -241,6 +355,11 @@ sdl_worker_doquit       resq        1
 
 sdl_init_ok             resq        1
 sdl_window              resq        1
+sdl_renderer            resq        1
+sdl_want_input          resq        1
+sdl_have_input          resq        1
+
+sdl_eventbuf            resq        256/8
 
 sdl_textscreen_width    resq        1
 sdl_textscreen_height   resq        1
@@ -260,5 +379,6 @@ sdl_thrcrterr           db          '? SDL_CreateThread failed: %s',10,0
 sdl_windowtitle         db          'AsmBASIC',0
 sdl_thrreperr           db          '? SDL worker failed',10,0
 sdl_crtwnderr           db          '? SDL_CreateWindow failed: %s',10,0
+sdl_crtrnderr           db          '? SDL_CreateRenderer failed: %s',10,0
 
                         align       8,db 0
