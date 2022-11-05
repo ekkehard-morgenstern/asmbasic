@@ -7,10 +7,10 @@ Code in this repository can change and be restructured without prior warning.
 
 ## Compiling
 
-To compile this package, you need to install a C development environment first, and then NASM (the Netwide Assembler).
-On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt install build-essential nasm" to accomplish that.
+To compile this package, you need to install a C development environment first, and then NASM (the Netwide Assembler), and then the SDL2 development package.
+On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt install build-essential nasm libsdl2-dev" to accomplish that.
 
-After making sure you have the tools, type "make -B" to build the program.
+After making sure you have those tools and libraries, type "make -B" to build the program.
 
 ## Playing Around
 
