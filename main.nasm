@@ -34,13 +34,14 @@ LBUF_SIZE               equ         8192
                         extern      init_locale
                         extern      init_tokenizer
                         extern      dump_tokenmap
-                        extern      pb_initstdio,pb_readln,strlen
+                        extern      pb_initstdio,pb_initsdl,pb_readln,strlen
                         extern      tokenize,detokenize,tok_dumplinebuf
                         extern      tokenpad,tokenpadptr
 
 main                    enter       0,0
-                        call        pb_initstdio
                         call        init_locale
+                        ; call        pb_initstdio
+                        call        pb_initsdl
                         call        init_tokenizer
                         call        tokenizer_test
                         xor         rax,rax

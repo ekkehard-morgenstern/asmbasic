@@ -27,8 +27,10 @@
                         bits        64
 
                         section     .text
-                        global      pb_initstdio
+                        global      pb_initstdio, pb_initsdl
                         extern      std_printf,std_readln,std_color,std_cls
+                        extern      sdl_printf,sdl_readln,sdl_color,sdl_cls
+                        extern      sdl_launch
 
 pb_initstdio            enter       0,0
                         lea         rax,[std_printf]
@@ -39,6 +41,19 @@ pb_initstdio            enter       0,0
                         mov         [pb_color],rax
                         lea         rax,[std_cls]
                         mov         [pb_cls],rax
+                        leave
+                        ret
+
+pb_initsdl              enter       0,0
+                        lea         rax,[sdl_printf]
+                        mov         [pb_putfmt],rax
+                        lea         rax,[sdl_readln]
+                        mov         [pb_readln],rax
+                        lea         rax,[sdl_color]
+                        mov         [pb_color],rax
+                        lea         rax,[sdl_cls]
+                        mov         [pb_cls],rax
+                        call        sdl_launch
                         leave
                         ret
 

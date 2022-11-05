@@ -40,17 +40,21 @@ all:	asmbasic
 clean:
 	rm asmbasic *.o *.lst
 
-MODULES=main.o patchbay.o stdconsole.o locale.o unicode.o xalloc.o tokens.o \
-	    toknum.o
+MODULES=main.o patchbay.o stdconsole.o sdlconsole.o locale.o unicode.o \
+		xalloc.o tokens.o toknum.o 8x12font1.o
+
+# NOTE: pkg-config --cflags --libs sdl2
 
 asmbasic: $(MODULES)
-	gcc $(LNKOPT) -Wall -o asmbasic $(MODULES) -lc
+	gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lc -lpthread -lSDL2
 
 main.o: 	main.nasm
 
 patchbay.o:	patchbay.nasm
 
 stdconsole.o: stdconsole.nasm
+
+sdlconsole.o: sdlconsole.nasm
 
 locale.o: 	locale.nasm
 
@@ -61,3 +65,5 @@ xalloc.o: 	xalloc.nasm
 tokens.o: 	tokens.nasm
 
 toknum.o: 	toknum.nasm
+
+8x12font.o: 8x12font.nasm
