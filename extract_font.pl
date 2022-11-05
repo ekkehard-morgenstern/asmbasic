@@ -12,7 +12,7 @@ while (<FILE>) {
         next;
     }
     if ( /^#([0-9a-fA-F]{2})/ ) {
-        $byteix = ( $1 + 0 ) * 12;
+        $byteix = eval("0x$1") * 12;
         next;
     }
     if ( /^([.o]{8})/ ) {

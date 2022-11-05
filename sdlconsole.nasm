@@ -27,14 +27,18 @@
                         bits        64
 
 SDL_PRINTBUFSIZE        equ         16384
-SDL_SCREENBUFSIZE       equ         16384
-SDL_SCREENWIDTH         equ         640
-SDL_SCREENHEIGHT        equ         300
+SDL_TEXTSCREENWIDTH     equ         80
+SDL_TEXTSCREENHEIGHT    equ         25
+SDL_TEXTSCREENCELLS     equ         SDL_TEXTSCREENWIDTH*SDL_TEXTSCREENHEIGHT
+SDL_SCREENWIDTH         equ         SDL_TEXTSCREENWIDTH*8
+SDL_SCREENHEIGHT        equ         SDL_TEXTSCREENHEIGHT*12
 
                         struc       screencell
                             sc_col: resb    1   ; bits 4..7: bgpen, 0..3: fgpen
                             sc_chr: resb    1
                         endstruc
+
+SDL_SCREENBUFSIZE       equ         screencell_size*SDL_TEXTSCREENCELLS
 
                         section     .text
                         global      sdl_launch
@@ -45,12 +49,12 @@ SDL_SCREENHEIGHT        equ         300
                         extern      SDL_Delay,SDL_CreateWindow,SDL_DestroyWindow
                         extern      SDL_CreateRenderer,SDL_DestroyRenderer
                         extern      SDL_RenderClear,SDL_RenderPresent
-                        extern      SDL_PollEvent,strlen
+                        extern      SDL_PollEvent,strlen,font8x12_1
                         extern      SDL_StartTextInput,SDL_StopTextInput
                         extern      SDL_SetRenderDrawColor,SDL_SetHint
                         extern      SDL_RenderSetLogicalSize,SDL_CreateTexture
                         extern      SDL_DestroyTexture,SDL_RenderCopy
-                        extern      SDL_UpdateTexture
+                        extern      SDL_UpdateTexture,SDL_SetTextureBlendMode
 
 sdl_launch              enter       0,0
 
@@ -63,6 +67,14 @@ sdl_launch              enter       0,0
                         lea         rdi,[sdl_workbuf]
                         mov         rcx,sdl_screenbuf_size/8
                         rep         stosq
+
+                        ; initialize text screen settings
+                        mov         rax,SDL_TEXTSCREENWIDTH
+                        mov         [sdl_textscreen_width],rax
+                        mov         rax,SDL_TEXTSCREENHEIGHT
+                        mov         [sdl_textscreen_height],rax
+                        mov         rax,SDL_TEXTSCREENCELLS
+                        mov         [sdl_textscreen_size],rax
 
                         ; call SDL_SetMainReady
                         call        SDL_SetMainReady
@@ -236,6 +248,9 @@ sdl_worker              enter       0,0
                         jmp         .init_failed
 
 .texture_ok             mov         [sdl_texture],rax
+                        mov         rdi,rax
+                        mov         rsi,1       ; SDL_BLENDMODE_BLEND
+                        call        SDL_SetTextureBlendMode
 
                         ; init complete
                         mov         qword [sdl_worker_terminated],0
@@ -295,7 +310,8 @@ sdl_worker              enter       0,0
 .nottextediting         jmp         .eventloop
 
                         ; RENDER
-.render:
+                        ; render text screen
+.render                 call        sdl_rendertextscreen
 
                         ; update texture
                         mov         rdi,[sdl_texture]
@@ -395,6 +411,93 @@ sdl_enterinput          enter       0x10,0
                         leave
                         ret
 
+                        ; write text screen to screen memory
+sdl_rendertextscreen    enter       0x20,0
+                        mov         [rbp-0x08],r12
+                        mov         [rbp-0x10],r13
+                        mov         [rbp-0x18],r14
+                        mov         [rbp-0x20],r15
+
+                        ; copy screen buffer to work buffer
+                        lea         rsi,[sdl_screenbuf]
+                        lea         rdi,[sdl_workbuf]
+                        mov         rcx,SDL_SCREENBUFSIZE/8
+                        cld
+                        rep         movsq
+
+                        ; r10 - screen cell pointer
+                        lea         r10,[sdl_workbuf]
+                        ; r12 - character set
+                        lea         r12,[font8x12_1]
+                        ; rdi - screen memory
+                        lea         rdi,[sdl_screenmem]
+                        ; r13 - on-screen stride: next row
+                        mov         r13,(SDL_SCREENWIDTH-8)*4
+                        ; r14 - on-screen stride: next char
+                        mov         r14,(SDL_SCREENWIDTH*12-8)*4
+                        ; r15 - on-screen stride: next line
+                        mov         r15,(SDL_SCREENWIDTH*11)*4
+
+                        ; r9 - remaining rows on text screen
+                        ; r8 - remaining columns on text screen
+                        mov         r9,[sdl_textscreen_height]
+.nextrow                mov         r8,[sdl_textscreen_width]
+
+                        ; get screen cell info
+.nextcell               xor         rax,rax
+                        mov         al,[r10+sc_col]
+                        shr         al,4
+                        mov         r11d,dword [sdl_textbgpalette + rax*4]
+                        shl         r11,32
+                        mov         al,[r10+sc_col]
+                        and         al,15
+                        xor         rcx,rcx
+                        mov         ecx,dword [sdl_textfgpalette + rax*4]
+                        or          r11,rcx
+                        ; r11 - contains background color in upper 32 bits
+                        ; r11 - contains foreground color in lower 32 bits
+                        ;movzx       rax,byte [r10+sc_chr]
+                        mov         rax,65
+                        add         r10,screencell_size
+                        lea         rsi,[r12+rax*8]
+                        lea         rsi,[rsi+rax*4]
+                        ; rsi - character start address
+                        ; transfer character lines
+                        mov         ah,12
+                        ; transfer character line
+.charline               lodsb
+                        mov         ch,8    ; bits per line
+.charpixel              rol         al,1    ; get one bit
+                        setnc       cl      ; select color
+                        neg         cl
+                        and         cl,32
+                        mov         rdx,r11
+                        shr         rdx,cl
+                        mov         dword [rdi],edx ; store
+                        add         rdi,4   ; next pixel
+                        dec         ch
+                        jnz         .charpixel
+                        add         rdi,r13 ; next row
+                        dec         ah
+                        jnz         .charline
+                        sub         rdi,r14 ; next char
+
+                        ; loop over cells
+                        dec         r8
+                        jnz         .nextcell
+                        add         rdi,r15 ; next line
+
+                        ; loop over lines
+                        dec         r9
+                        jnz         .nextrow
+
+                        mov         r15,[rbp-0x20]
+                        mov         r14,[rbp-0x18]
+                        mov         r13,[rbp-0x10]
+                        mov         r12,[rbp-0x08]
+                        leave
+                        ret
+
                         ; CLIENT API
                         ; rdi - fmt
                         ; ... args
@@ -486,6 +589,42 @@ sdl_workbuf_size        equ         $-sdl_workbuf
 
 sdl_screenmem           resq        ((SDL_SCREENWIDTH*4)*SDL_SCREENHEIGHT)/8
 sdl_screenmem_size      equ         $-sdl_screenmem
+
+                        section     .data
+
+sdl_textbgpalette       dd          0x00000000  ; transparent
+                        dd          0xFFCCCCCC  ; white
+                        dd          0xFF0000AA  ; blue
+                        dd          0xFF00AAAA  ; cyan
+                        dd          0xFFCCCC00  ; yellow
+                        dd          0xFFCC8800  ; orange
+                        dd          0xFFAA0000  ; red
+                        dd          0xFF00AA00  ; green
+                        dd          0xFFAA00AA  ; magenta
+                        dd          0xFF888888  ; gray
+                        dd          0xFF444444  ; dark gray
+                        dd          0xFF000000  ; black
+                        dd          0xFFAAAAAA  ; light gray
+                        dd          0xFFCC0088  ; pink
+                        dd          0xFF8800CC  ; purple
+                        dd          0xFF00CC88  ; sea green
+
+sdl_textfgpalette       dd          0xFF000000  ; black
+                        dd          0xFFFFFFFF  ; white
+                        dd          0xFF0000FF  ; blue
+                        dd          0xFF00FFFF  ; cyan
+                        dd          0xFFFFFF00  ; yellow
+                        dd          0xFFFF8800  ; orange
+                        dd          0xFFFF0000  ; red
+                        dd          0xFF00FF00  ; green
+                        dd          0xFFFF00FF  ; magenta
+                        dd          0xFFAAAAAA  ; gray
+                        dd          0xFF666666  ; dark gray
+                        dd          0x00000000  ; transparent
+                        dd          0xFFCCCCCC  ; light gray
+                        dd          0xFFFF0088  ; pink
+                        dd          0xFF8800FF  ; purple
+                        dd          0xFF00FF88  ; sea green
 
                         section     .rodata
 
