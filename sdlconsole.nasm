@@ -40,7 +40,7 @@ SDL_SCREENBUFSIZE       equ         16384
                         extern      snprintf,atexit,exit,fprintf,stderr
                         extern      SDL_SetMainReady,SDL_Init,SDL_GetError
                         extern      SDL_Quit,SDL_CreateThread,SDL_WaitThread
-                        extern      SDL_Delay
+                        extern      SDL_Delay,SDL_CreateWindow,SDL_DestroyWindow
 
 sdl_launch              enter       0,0
 
@@ -83,6 +83,7 @@ sdl_launch              enter       0,0
                         lea         rsi,[sdl_worker_moniker]
                         xor         rdx,rdx
                         mov         [sdl_worker_doquit],rdx
+                        mov         [sdl_init_ok],rdx
                         call        SDL_CreateThread
                         test        rax,rax
                         jnz         .thread_ok
@@ -101,8 +102,29 @@ sdl_launch              enter       0,0
                         lea         rdi,[sdl_cleanupworker]
                         call        atexit
 
-                        leave
+.wait_feedback          cmp         qword [sdl_init_ok],0
+                        jne         .thread_feedback
+                        mov         rdi,50
+                        call        SDL_Delay
+                        jmp         .wait_feedback
+
+.thread_feedback        cmp         qword [sdl_init_ok],-1
+                        je          .init_failed
+
+                        ; init ok
+
+.end                    leave
                         ret
+
+.init_failed            mov         rdi,[stderr]
+                        lea         rsi,[sdl_thrreperr]
+                        xor         al,al
+                        call        fprintf
+
+                        mov         rdi,1
+                        call        exit
+
+                        jmp         .end
 
 sdl_cleanupworker       enter       0,0
                         ; set 'quit' flag for worker thread
@@ -119,12 +141,51 @@ sdl_cleanupworker       enter       0,0
                         ; - must terminate upon sdl_worker_doquit
 sdl_worker              enter       0,0
 
-.waitloop               mov         rax,[sdl_worker_doquit]
+                        lea         rdi,[sdl_windowtitle]
+                        mov         rsi,0x1FFF0000
+                        mov         rdx,rsi
+                        xor         rcx,rcx
+                        mov         r8,rcx
+                        mov         r9,0x00001001
+                        call        SDL_CreateWindow
+                        test        rax,rax
+                        jnz         .window_ok
+
+                        call        SDL_GetError
+                        mov         rdi,[stderr]
+                        lea         rsi,[sdl_crtwnderr]
+                        mov         rdx,rax
+                        xor         al,al
+                        call        fprintf
+
+.init_failed            mov         qword [sdl_init_ok],-1
+                        jmp         .sleeploop
+
+.window_ok              mov         [sdl_window],rax
+
+                        ; init complete
+                        mov         qword [sdl_init_ok],1
+
+                        ; MAIN LOOP
+.mainloop               mov         rax,[sdl_worker_doquit]
+                        test        rax,rax
+                        jnz         .endmain
+
+                        mov         rdi,50
+                        call        SDL_Delay
+                        jmp         .mainloop
+
+.endmain                mov         rdi,[sdl_window]
+                        call        SDL_DestroyWindow
+                        jmp         .end
+
+.sleeploop              mov         rax,[sdl_worker_doquit]
                         test        rax,rax
                         jnz         .end
 
                         mov         rdi,50
                         call        SDL_Delay
+                        jmp         .sleeploop
 
 .end                    leave
                         ret
@@ -178,6 +239,9 @@ sdl_worker_handle       resq        1
 sdl_worker_result       resq        1
 sdl_worker_doquit       resq        1
 
+sdl_init_ok             resq        1
+sdl_window              resq        1
+
 sdl_textscreen_width    resq        1
 sdl_textscreen_height   resq        1
 sdl_textscreen_size     resq        1
@@ -190,8 +254,11 @@ sdl_workbuf_size        equ         $-sdl_workbuf
 
                         section     .rodata
 
-sdl_initerr             db          'SDL_Init failed: %s',10,0
+sdl_initerr             db          '? SDL_Init failed: %s',10,0
 sdl_worker_moniker      db          'SDL worker thread',0
-sdl_thrcrterr           db          'SDL_CreateThread failed: %s',10,0
+sdl_thrcrterr           db          '? SDL_CreateThread failed: %s',10,0
+sdl_windowtitle         db          'AsmBASIC',0
+sdl_thrreperr           db          '? SDL worker failed',10,0
+sdl_crtwnderr           db          '? SDL_CreateWindow failed: %s',10,0
 
                         align       8,db 0
