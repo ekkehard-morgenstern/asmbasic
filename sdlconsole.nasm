@@ -55,6 +55,7 @@ SDL_SCREENBUFSIZE       equ         screencell_size*SDL_TEXTSCREENCELLS
                         extern      SDL_RenderSetLogicalSize,SDL_CreateTexture
                         extern      SDL_DestroyTexture,SDL_RenderCopy
                         extern      SDL_UpdateTexture,SDL_SetTextureBlendMode
+                        extern      SDL_GetTicks
 
 sdl_launch              enter       0,0
 
@@ -75,6 +76,8 @@ sdl_launch              enter       0,0
                         mov         [sdl_textscreen_height],rax
                         mov         rax,SDL_TEXTSCREENCELLS
                         mov         [sdl_textscreen_size],rax
+                        xor         rax,rax
+                        mov         [sdl_textcursor_pos],rax
 
                         ; call SDL_SetMainReady
                         call        SDL_SetMainReady
@@ -261,6 +264,11 @@ sdl_worker              enter       0,0
                         test        rax,rax
                         jnz         .endmain
 
+                        call        SDL_GetTicks
+                        mov         rdx,0xffffffff
+                        and         rax,rdx
+                        mov         [sdl_ticks],rax
+
                         mov         rax,[sdl_want_input]
                         cmp         rax,[sdl_have_input]
                         je          .eventloop
@@ -412,11 +420,12 @@ sdl_enterinput          enter       0x10,0
                         ret
 
                         ; write text screen to screen memory
-sdl_rendertextscreen    enter       0x20,0
+sdl_rendertextscreen    enter       0x30,0
                         mov         [rbp-0x08],r12
                         mov         [rbp-0x10],r13
                         mov         [rbp-0x18],r14
                         mov         [rbp-0x20],r15
+                        mov         [rbp-0x28],rbx
 
                         ; copy screen buffer to work buffer
                         lea         rsi,[sdl_screenbuf]
@@ -438,6 +447,25 @@ sdl_rendertextscreen    enter       0x20,0
                         ; r15 - on-screen stride: next line
                         mov         r15,(SDL_SCREENWIDTH*11)*4
 
+                        ; compute text cursor address (rbx)
+                        mov         rax,[sdl_textcursor_pos]
+                        mov         rdx,screencell_size
+                        mul         rdx
+                        add         rax,r10
+                        mov         [rbp-0x30],rax
+
+                        ; compute cursor visibility
+                        mov         rcx,[sdl_want_input]
+                        mov         rax,[sdl_ticks]
+                        xor         rdx,rdx
+                        mov         rbx,500
+                        div         rbx
+                        cmp         rdx,250
+                        setae       al
+                        movzx       rax,al
+                        and         rcx,rax
+                        mov         [sdl_textcursor_visible],rcx
+
                         ; r9 - remaining rows on text screen
                         ; r8 - remaining columns on text screen
                         mov         r9,[sdl_textscreen_height]
@@ -456,12 +484,17 @@ sdl_rendertextscreen    enter       0x20,0
                         or          r11,rcx
                         ; r11 - contains background color in upper 32 bits
                         ; r11 - contains foreground color in lower 32 bits
-                        ;movzx       rax,byte [r10+sc_chr]
-                        mov         rax,65
-                        add         r10,screencell_size
+                        movzx       rax,byte [r10+sc_chr]
                         lea         rsi,[r12+rax*8]
                         lea         rsi,[rsi+rax*4]
                         ; rsi - character start address
+                        ; bl  - text cursor xor mask
+                        cmp         r10,[rbp-0x30]
+                        sete        bl
+                        and         bl,[sdl_textcursor_visible]
+                        neg         bl
+                        add         r10,screencell_size
+
                         ; transfer character lines
                         mov         ah,12
                         ; transfer character line
@@ -470,6 +503,7 @@ sdl_rendertextscreen    enter       0x20,0
 .charpixel              rol         al,1    ; get one bit
                         setnc       cl      ; select color
                         neg         cl
+                        xor         cl,bl
                         and         cl,32
                         mov         rdx,r11
                         shr         rdx,cl
@@ -491,6 +525,7 @@ sdl_rendertextscreen    enter       0x20,0
                         dec         r9
                         jnz         .nextrow
 
+                        mov         rbx,[rbp-0x28]
                         mov         r15,[rbp-0x20]
                         mov         r14,[rbp-0x18]
                         mov         r13,[rbp-0x10]
@@ -574,6 +609,9 @@ sdl_have_input          resq        1
 sdl_background_rgba     resq        1
 sdl_texture             resq        1
 sdl_return_pressed      resq        1
+sdl_textcursor_pos      resq        1
+sdl_ticks               resq        1
+sdl_textcursor_visible  resq        1
 
 sdl_eventbuf            resq        256/8
 
