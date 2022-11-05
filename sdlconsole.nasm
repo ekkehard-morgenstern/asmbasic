@@ -238,6 +238,7 @@ sdl_worker              enter       0,0
 .texture_ok             mov         [sdl_texture],rax
 
                         ; init complete
+                        mov         qword [sdl_worker_terminated],0
                         mov         qword [sdl_init_ok],1
 
                         ; MAIN LOOP
@@ -337,7 +338,15 @@ sdl_worker              enter       0,0
                         call        SDL_DestroyRenderer
                         mov         rdi,[sdl_window]
                         call        SDL_DestroyWindow
-                        jmp         .end
+
+                        cmp         qword [sdl_want_input],0
+                        je          .notwaiting
+
+                        ; mimick a RETURN press to wake up the main thread
+                        ; if it's waiting on input
+                        mov         qword [sdl_return_pressed],1
+
+.notwaiting             jmp         .end
 
 .sleeploop              mov         rax,[sdl_worker_doquit]
                         test        rax,rax
@@ -347,7 +356,8 @@ sdl_worker              enter       0,0
                         call        SDL_Delay
                         jmp         .sleeploop
 
-.end                    leave
+.end                    mov         qword [sdl_worker_terminated],1
+                        leave
                         ret
 
                         ; special keys
@@ -369,7 +379,8 @@ sdl_specialkey          enter       0,0
 
 .backspace              jmp         .end
 
-.return                 jmp         .end
+.return                 mov         qword [sdl_return_pressed],1
+                        jmp         .end
 
                         ; enter a Unicode character
                         ; rdi - NUL-terminated string in UTF-8 format
@@ -410,6 +421,24 @@ sdl_printf              enter       0,0
                         ; rsi - bufsiz
 sdl_readln              enter       0,0
                         mov         byte [rdi],0
+
+                        mov         qword [sdl_return_pressed],0
+                        mov         qword [sdl_have_input],0
+                        mov         qword [sdl_want_input],1
+
+.waitinput              cmp         qword [sdl_worker_terminated],0
+                        jne         .workerquit
+
+                        cmp         qword [sdl_return_pressed],0
+                        jne         .gotreturn
+
+                        mov         rdi,50
+                        call        SDL_Delay
+                        jmp         .waitinput
+
+.workerquit:
+.gotreturn              mov         qword [sdl_want_input],0
+
                         leave
                         ret
 
@@ -432,6 +461,7 @@ sdl_printbuf_size       equ         $-sdl_printbuf
 sdl_worker_handle       resq        1
 sdl_worker_result       resq        1
 sdl_worker_doquit       resq        1
+sdl_worker_terminated   resq        1
 
 sdl_init_ok             resq        1
 sdl_window              resq        1
@@ -440,6 +470,7 @@ sdl_want_input          resq        1
 sdl_have_input          resq        1
 sdl_background_rgba     resq        1
 sdl_texture             resq        1
+sdl_return_pressed      resq        1
 
 sdl_eventbuf            resq        256/8
 
