@@ -28,6 +28,8 @@
 
 SDL_PRINTBUFSIZE        equ         16384
 SDL_SCREENBUFSIZE       equ         16384
+SDL_SCREENWIDTH         equ         640
+SDL_SCREENHEIGHT        equ         300
 
                         struc       screencell
                             sc_col: resb    1   ; bits 4..7: bgpen, 0..3: fgpen
@@ -45,6 +47,10 @@ SDL_SCREENBUFSIZE       equ         16384
                         extern      SDL_RenderClear,SDL_RenderPresent
                         extern      SDL_PollEvent,strlen
                         extern      SDL_StartTextInput,SDL_StopTextInput
+                        extern      SDL_SetRenderDrawColor,SDL_SetHint
+                        extern      SDL_RenderSetLogicalSize,SDL_CreateTexture
+                        extern      SDL_DestroyTexture,SDL_RenderCopy
+                        extern      SDL_UpdateTexture
 
 sdl_launch              enter       0,0
 
@@ -145,6 +151,9 @@ sdl_cleanupworker       enter       0,0
                         ; - must terminate upon sdl_worker_doquit
 sdl_worker              enter       0,0
 
+                        mov         rax,0x888888ff
+                        mov         [sdl_background_rgba],rax
+
                         lea         rdi,[sdl_windowtitle]
                         mov         rsi,0x1FFF0000 ; SDL_WINDOWPOS_UNDEFINED
                         mov         rdx,rsi
@@ -188,6 +197,45 @@ sdl_worker              enter       0,0
                         jmp         .init_failed
 
 .renderer_ok            mov         [sdl_renderer],rax
+
+                        ; user linear upscaling
+                        lea         rdi,[sdl_rndscalqual]
+                        lea         rsi,[sdl_linear]
+                        call        SDL_SetHint
+
+                        ; set logical canvas size
+                        mov         rdi,[sdl_renderer]
+                        mov         rsi,SDL_SCREENWIDTH
+                        mov         rdx,SDL_SCREENHEIGHT
+                        call        SDL_RenderSetLogicalSize
+
+                        ; create texture
+                        mov         rdi,[sdl_renderer]
+                        ; 6, 3, 6, 32, 4
+                        ;  0001 0110  0011 0110  0010 0000  0000 0100
+                        ;   1    6      3   6     2    0     0    4
+                        mov         rsi,0x16362004 ; SDL_PIXELFORMAT_ARGB8888
+                        mov         rdx,1   ; SDL_TEXTUREACCESS_STREAMING
+                        mov         rcx,SDL_SCREENWIDTH
+                        mov         r8,SDL_SCREENHEIGHT
+                        call        SDL_CreateTexture
+                        test        rax,rax
+                        jnz         .texture_ok
+
+                        call        SDL_GetError
+                        mov         rdi,[stderr]
+                        lea         rsi,[sdl_crttexerr]
+                        mov         rdx,rax
+                        xor         al,al
+                        call        fprintf
+
+                        mov         rdi,[sdl_renderer]
+                        call        SDL_DestroyRenderer
+                        mov         rdi,[sdl_window]
+                        call        SDL_DestroyWindow
+                        jmp         .init_failed
+
+.texture_ok             mov         [sdl_texture],rax
 
                         ; init complete
                         mov         qword [sdl_init_ok],1
@@ -246,14 +294,46 @@ sdl_worker              enter       0,0
 .nottextediting         jmp         .eventloop
 
                         ; RENDER
-.render                 mov         rdi,[sdl_renderer]
+.render:
+
+                        ; update texture
+                        mov         rdi,[sdl_texture]
+                        xor         rsi,rsi
+                        lea         rdx,[sdl_screenmem]
+                        mov         rcx,SDL_SCREENWIDTH*4
+                        call        SDL_UpdateTexture
+
+                        ; clear screen
+                        mov         rax,[sdl_background_rgba]
+                        mov         rdi,[sdl_renderer]
+                        rol         eax,8
+                        movzx       rsi,al      ; r
+                        rol         eax,8
+                        movzx       rdx,al      ; g
+                        rol         eax,8
+                        movzx       rcx,al      ; b
+                        rol         eax,8
+                        movzx       r8,al       ; a
+                        call        SDL_SetRenderDrawColor
+                        mov         rdi,[sdl_renderer]
                         call        SDL_RenderClear
+
+                        ; paint texture
+                        mov         rdi,[sdl_renderer]
+                        mov         rsi,[sdl_texture]
+                        xor         rdx,rdx
+                        xor         rcx,rcx
+                        call        SDL_RenderCopy
+
+                        ; present screen
                         mov         rdi,[sdl_renderer]
                         call        SDL_RenderPresent
 
                         jmp         .mainloop
 
-.endmain                mov         rdi,[sdl_renderer]
+.endmain                mov         rdi,[sdl_texture]
+                        call        SDL_DestroyTexture
+                        mov         rdi,[sdl_renderer]
                         call        SDL_DestroyRenderer
                         mov         rdi,[sdl_window]
                         call        SDL_DestroyWindow
@@ -358,6 +438,8 @@ sdl_window              resq        1
 sdl_renderer            resq        1
 sdl_want_input          resq        1
 sdl_have_input          resq        1
+sdl_background_rgba     resq        1
+sdl_texture             resq        1
 
 sdl_eventbuf            resq        256/8
 
@@ -371,6 +453,9 @@ sdl_screenbuf_size      equ         $-sdl_screenbuf
 sdl_workbuf             resq        SDL_SCREENBUFSIZE/8
 sdl_workbuf_size        equ         $-sdl_workbuf
 
+sdl_screenmem           resq        ((SDL_SCREENWIDTH*4)*SDL_SCREENHEIGHT)/8
+sdl_screenmem_size      equ         $-sdl_screenmem
+
                         section     .rodata
 
 sdl_initerr             db          '? SDL_Init failed: %s',10,0
@@ -380,5 +465,8 @@ sdl_windowtitle         db          'AsmBASIC',0
 sdl_thrreperr           db          '? SDL worker failed',10,0
 sdl_crtwnderr           db          '? SDL_CreateWindow failed: %s',10,0
 sdl_crtrnderr           db          '? SDL_CreateRenderer failed: %s',10,0
+sdl_rndscalqual         db          'SDL_RENDER_SCALE_QUALITY',0
+sdl_linear              db          'linear',0
+sdl_crttexerr           db          '? SDL_CreateTexture failed: %s',10,0
 
                         align       8,db 0
