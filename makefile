@@ -26,7 +26,7 @@ ASMOPT=-g -F dwarf
 LNKOPT=-g
 else
 ASMOPT=
-LNKOPT=-s -fPIE
+LNKOPT=-s
 endif
 
 .SUFFIXES:	.nasm
