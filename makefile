@@ -46,7 +46,7 @@ MODULES=main.o patchbay.o stdconsole.o sdlconsole.o locale.o unicode.o \
 # NOTE: pkg-config --cflags --libs sdl2
 
 asmbasic: $(MODULES)
-	gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lc -lpthread -lSDL2
+	gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lrt -lSDL2
 
 main.o: 	main.nasm
 
