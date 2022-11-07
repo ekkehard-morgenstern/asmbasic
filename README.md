@@ -12,8 +12,6 @@ On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt instal
 
 After making sure you have those tools and libraries, type "make -B" to build the program.
 
-NOTE: There seems to be a problem with linking on Ubuntu 20.04+. I'm using Debian 10, and this problem doesn't occur for me, so it must be a Ubuntu-specific problem. I'm trying to solve the issue.
-
 ## Playing Around
 
 Since the code is currently in its initial development stages, it might be in a state that cannot be used (like, at all), at any given time.

@@ -23,10 +23,10 @@
 
 ifdef DEBUG
 ASMOPT=-g -F dwarf
-LNKOPT=-g
+LNKOPT=-g -no-pie
 else
 ASMOPT=
-LNKOPT=-s
+LNKOPT=-s -no-pie
 endif
 
 .SUFFIXES:	.nasm
