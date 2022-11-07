@@ -12,7 +12,7 @@ On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt instal
 
 After making sure you have those tools and libraries, type "make -B" to build the program.
 
-NOTE: It seems that NASM is broken on Ubuntu since at least Ubuntu 20.04. It seems to generate corrupt output files containing invalid relocations. If you find a solution for this, please notify me. I've been using NASM on Debian 9 and Debian 10, and never encountered such an error. I will try to look for a different assembler regardless.
+NOTE: There seems to be a problem with linking on Ubuntu 20.04+. I'm using Debian 10, and this problem doesn't occur for me, so it must be a Ubuntu-specific problem. I'm trying to solve the issue.
 
 ## Playing Around
 
