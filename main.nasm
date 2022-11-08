@@ -218,9 +218,11 @@ tokenizer_test          enter       0,0
                         jz          .end
                         lea         rdi,[lbuf]
                         call        strlen
+                        lea         rdi,[lbuf]
                         cmp         byte [rdi+rax-1],0x0a
                         jne         .nolf
                         dec         rax
+                        mov         byte [rdi+rax],0
 .nolf                   test        rax,rax
                         jz          .end
                         lea         rdi,[lbuf]
