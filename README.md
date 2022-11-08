@@ -12,6 +12,16 @@ On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt instal
 
 After making sure you have those tools and libraries, type "make -B" to build the program.
 
+## Using
+
+To use AsmBASIC, either run it on the command line with "./asmbasic" or create a desktop launcher for it to run it from the desktop.
+
+When run from the command line, you can specify the "--help" option to see its command line parameters, as in "./asmbasic --help".
+
+In Standard I/O terminal emulation (switched on with the "--stdio" option), the interpreter currently enters a loop asking for BASIC input lines and outputting the tokenized form as well as the detokenized form of the input lines.
+
+In default or SDL mode (default, or switched on with the "--sdl" option), the interpreter currently just shows a blank screen with a blinking cursor. I'm still working on text input/output in the SDL terminal emulation.
+
 ## Playing Around
 
 Since the code is currently in its initial development stages, it might be in a state that cannot be used (like, at all), at any given time.
