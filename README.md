@@ -22,6 +22,16 @@ In Standard I/O terminal emulation (switched on with the "--stdio" option), the 
 
 In default or SDL mode (default, or switched on with the "--sdl" option), the interpreter currently just shows a blank screen with a blinking cursor. I'm still working on text input/output in the SDL terminal emulation.
 
+## Limitations
+
+Some of the currently defined limits are as follows:
+
+The current maximum line length is 8191 bytes of UTF-8 text.
+
+The current maximum length of string constants is 1004 bytes of UTF-8 text.
+
+The current maximum length of identifiers is 1004 bytes of UTF-8 text.
+
 ## Playing Around
 
 Since the code is currently in its initial development stages, it might be in a state that cannot be used (like, at all), at any given time.
