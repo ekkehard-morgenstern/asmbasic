@@ -37,7 +37,28 @@ WCOUT_OVERSHOOT         equ         20  ; room for 4 * 5 bytes of overshoot
 
                         section     .text
                         global      uclineininit,ucgetcp,uclineoutinit,ucputcp
+                        global      ucinsavectx,ucinloadctx
                         extern      mbrtowc,wcrtomb
+
+
+                        ; rdi - target pointer, 24 bytes
+ucinsavectx             enter       0,0
+                        lea         rsi,[wcinstate]
+                        mov         rcx,wcinctxsize/8
+                        cld
+                        rep         movsq
+                        leave
+                        ret
+
+                        ; rdi - source pointer, 24 bytes
+ucinloadctx             enter       0,0
+                        mov         rsi,rdi
+                        lea         rdi,[wcinstate]
+                        mov         rcx,wcinctxsize/8
+                        cld
+                        rep         movsq
+                        leave
+                        ret
 
                         ; SYNOPSIS: uclineininit() initializes a text line
                         ; for processing.
@@ -161,7 +182,9 @@ wcchar                  resd        1
 wcinstate               resd        mbstate_size/4
 wclinein                resq        1
 wclineinend             resq        1
+wcinctxsize             equ         $-wcinstate
 wcoutstate              resd        mbstate_size/4
 wclineout               resq        1
 wclineoutend            resq        1
 wclineoutbeg            resq        1
+wcoutctxsize            equ         $-wcoutstate

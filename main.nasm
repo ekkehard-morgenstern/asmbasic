@@ -37,7 +37,7 @@ LBUF_SIZE               equ         8192
                         extern      pb_initstdio,pb_initsdl,pb_readln,strlen
                         extern      tokenize,detokenize,tok_dumplinebuf
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
-                        extern      exit
+                        extern      exit,pb_putfmt
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -213,6 +213,9 @@ getline                 enter       0,0
                         ret
 
 tokenizer_test          enter       0,0
+                        lea         rdi,[tokenizertest]
+                        xor         al,al
+                        call        qword [pb_putfmt]
 .lineloop               call        getline
                         test        rax,rax
                         jz          .end
@@ -262,8 +265,8 @@ cursesoption            db          'curses',0
 coption                 db          'c',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
-morethanonefile         db          '? Extra filename ignored: %s',10
-                        db          0
+morethanonefile         db          '? Extra filename ignored: %s',10,0
+tokenizertest           db          'AsmBASIC tokenizer test',10,0
 
 helptext                db          'Usage: %s [options] [file]',10
                         db          'Options:',10
