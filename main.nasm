@@ -31,7 +31,7 @@ LBUF_SIZE               equ         8192
                         section     .text
 
                         global      main
-                        extern      init_locale
+                        extern      init_locale,chkcputype
                         extern      init_tokenizer
                         extern      dump_tokenmap
                         extern      pb_initstdio,pb_initsdl,pb_readln,strlen
@@ -42,9 +42,10 @@ LBUF_SIZE               equ         8192
 main                    enter       0,0
                         mov         [argc],rdi
                         mov         [argv],rsi
-                        call        getargs
 
                         call        init_locale
+                        call        getargs
+                        call        chkcputype
 
                         cmp         qword [consolemode],0
                         je          .defaultconsole

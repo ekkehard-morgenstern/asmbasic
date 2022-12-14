@@ -43,6 +43,7 @@ SDL_SCREENBUFSIZE       equ         screencell_size*SDL_TEXTSCREENCELLS
                         section     .text
                         global      sdl_launch
                         global      sdl_printf,sdl_readln,sdl_color,sdl_cls
+                        extern      chkkernver
                         extern      snprintf,atexit,exit,fprintf,stderr
                         extern      SDL_SetMainReady,SDL_Init,SDL_GetError
                         extern      SDL_Quit,SDL_CreateThread,SDL_WaitThread
@@ -56,9 +57,14 @@ SDL_SCREENBUFSIZE       equ         screencell_size*SDL_TEXTSCREENCELLS
                         extern      SDL_DestroyTexture,SDL_RenderCopy
                         extern      SDL_UpdateTexture,SDL_SetTextureBlendMode
                         extern      SDL_GetTicks,ucinsavectx,ucinloadctx
-                        extern      uclineininit,ucgetcp
+                        extern      uclineininit,ucgetcp,epoll_create1,perror
+                        extern      close
 
+                        ; CLIENT API: Launch SERVER side SDL worker
 sdl_launch              enter       0,0
+
+                        ; check kernel version >= 2.6.37 b/c of epoll API
+                        call        chkkernver
 
                         ; clear out screen and work buffers
                         lea         rdi,[sdl_screenbuf]
@@ -152,6 +158,44 @@ sdl_launch              enter       0,0
 
                         jmp         .end
 
+sdl_initepoll           enter       0,0
+
+                        ; create EPOLL instance
+
+                        xor         rdi,rdi
+                        call        epoll_create1
+
+                        cmp         eax,-1
+                        jne         .epollok
+
+                        lea         rdi,[sdl_epollcrtpfx]
+                        call        perror
+
+                        mov         rdi,1
+                        call        exit
+
+                        jmp         .end
+
+.epollok                mov         [sdl_epollhnd],eax
+
+.end                    leave
+                        ret
+
+sdl_cleanupepoll        enter       0,0
+
+                        movsx       rdi,dword [sdl_epollhnd]
+                        call        close
+
+                        cmp         eax,-1
+                        jne         .closeok
+
+                        lea         rdi,[sdl_closeerrpfx]
+                        call        perror
+
+.closeok:
+                        leave
+                        ret
+
 sdl_cleanupworker       enter       0,0
                         ; set 'quit' flag for worker thread
                         mov         qword [sdl_worker_doquit],1
@@ -164,6 +208,7 @@ sdl_cleanupworker       enter       0,0
                         ret
 
                         ; WORKER THREAD
+                        ; SERVER side worker thread
                         ; - must terminate upon sdl_worker_doquit
 sdl_worker              enter       0,0
 
@@ -420,6 +465,7 @@ sdl_enterinput          enter       0x10,0
                         leave
                         ret
 
+                        ; SERVER side text screen renderer
                         ; write text screen to screen memory
 sdl_rendertextscreen    enter       0x30,0
                         mov         [rbp-0x08],r12
@@ -601,6 +647,7 @@ sdl_printf              enter       0x30,0
                         leave
                         ret
 
+                        ; CLIENT service routine
 sdl_outputlf            enter       0,0
 
                         ; divide the cursor position by the screen width
@@ -627,6 +674,7 @@ sdl_outputlf            enter       0,0
 .end                    leave
                         ret
 
+                        ; CLIENT service routine
                         ; rdi - code point
 sdl_outputcp            enter       0,0
 
@@ -662,7 +710,7 @@ sdl_outputcp            enter       0,0
 .end                    leave
                         ret
 
-
+                        ; CLIENT service routine
 sdl_scrollup            enter       0,0
 
                         ; copy lines to previous line, top to bottom
@@ -777,6 +825,8 @@ sdl_textcursor_pos      resq        1
 sdl_ticks               resq        1
 sdl_textcursor_visible  resq        1
 sdl_text_attribute      resq        1
+sdl_epollhnd            resd        1
+                        resd        1
 
 sdl_eventbuf            resq        256/8
 
@@ -841,5 +891,7 @@ sdl_crtrnderr           db          '? SDL_CreateRenderer failed: %s',10,0
 sdl_rndscalqual         db          'SDL_RENDER_SCALE_QUALITY',0
 sdl_linear              db          'linear',0
 sdl_crttexerr           db          '? SDL_CreateTexture failed: %s',10,0
+sdl_epollcrtpfx         db          '? epoll_create1(2)',0
+sdl_closeerrpfx         db          '? close(2)',0
 
                         align       8,db 0

@@ -1529,6 +1529,7 @@ tokentbl                db          4,2,"ABS(",0x03,0x00
                         db          5,2,"WHILE",0x03,0xa6
                         db          4,2,"XNOR",0x03,0xa7
                         db          3,2,"XOR",0x03,0xa8
+                        db          5,2,"YIELD",0x03,0xa9
 tokentbl_size           equ         $-tokentbl
 tokentbl_name           db          7,"default"
 

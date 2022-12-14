@@ -40,8 +40,8 @@ all:	asmbasic
 clean:
 	rm asmbasic *.o *.lst
 
-MODULES=main.o patchbay.o stdconsole.o sdlconsole.o locale.o unicode.o \
-		xalloc.o tokens.o toknum.o 8x12font1.o
+MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
+		stdconsole.o sdlconsole.o tokens.o toknum.o 8x12font1.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -50,17 +50,21 @@ asmbasic: $(MODULES)
 
 main.o: 	main.nasm
 
-patchbay.o:	patchbay.nasm
+osversion.o: 	osversion.nasm
 
-stdconsole.o: stdconsole.nasm
-
-sdlconsole.o: sdlconsole.nasm
+cpuinfo.o: 	cpuinfo.nasm
 
 locale.o: 	locale.nasm
 
 unicode.o: 	unicode.nasm
 
 xalloc.o: 	xalloc.nasm
+
+patchbay.o:	patchbay.nasm
+
+stdconsole.o: stdconsole.nasm
+
+sdlconsole.o: sdlconsole.nasm
 
 tokens.o: 	tokens.nasm
 
