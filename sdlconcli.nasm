@@ -46,56 +46,16 @@
                         extern      sdl_textscreen_size,sdl_textcursor_pos
                         extern      sdl_worker,sdl_worker_doquit,sdl_init_ok
                         extern      sdl_worker_handle,sdl_worker_result
-                        extern      epoll_create1,perror,sdl_epollhnd,close
                         extern      ucinsavectx,ucinloadctx
-                        extern      uclineininit,ucgetcp,epoll_create1,perror
-
-sdl_initepoll           enter       0,0
-
-                        ; create EPOLL instance
-
-                        xor         rdi,rdi
-                        call        epoll_create1
-
-                        cmp         eax,-1
-                        jne         .epollok
-
-                        lea         rdi,[sdl_epollcrtpfx]
-                        call        perror
-
-                        mov         rdi,1
-                        call        exit
-
-                        jmp         .end
-
-.epollok                mov         [sdl_epollhnd],eax
-
-                        lea         rdi,[sdl_cleanupepoll]
-                        call        atexit
-
-.end                    leave
-                        ret
-
-sdl_cleanupepoll        enter       0,0
-
-                        movsx       rdi,dword [sdl_epollhnd]
-                        call        close
-
-                        cmp         eax,-1
-                        jne         .closeok
-
-                        lea         rdi,[sdl_closeerrpfx]
-                        call        perror
-
-.closeok:
-                        leave
-                        ret
-
+                        extern      uclineininit,ucgetcp,sdl_initepoll
 
 sdl_launch              enter       0,0
 
                         ; check kernel version >= 2.6.37 b/c of epoll API
                         call        chkkernver
+
+                        ; initialize epoll stuff
+                        call        sdl_initepoll
 
                         ; clear out screen and work buffers
                         lea         rdi,[sdl_screenbuf]
@@ -434,7 +394,5 @@ sdl_worker_moniker      db          'SDL worker thread',0
 sdl_initerr             db          '? SDL_Init failed: %s',10,0
 sdl_thrcrterr           db          '? SDL_CreateThread failed: %s',10,0
 sdl_thrreperr           db          '? SDL worker failed',10,0
-sdl_epollcrtpfx         db          '? epoll_create1(2)',0
-sdl_closeerrpfx         db          '? close(2)',0
 
                         align       8,db 0

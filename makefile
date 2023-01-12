@@ -41,8 +41,8 @@ clean:
 	rm asmbasic *.o *.lst
 
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
-		stdconsole.o sdlconsrv.o sdlconcli.o sdlconshr.o tokens.o toknum.o \
-		8x12font1.o
+		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconshr.o tokens.o \
+		toknum.o 8x12font1.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -68,6 +68,8 @@ stdconsole.o: stdconsole.nasm
 sdlconsrv.o: sdlconsrv.nasm sdlconshr.inc
 
 sdlconcli.o: sdlconcli.nasm sdlconshr.inc
+
+sdlconcev.o: sdlconcev.nasm sdlconshr.inc
 
 sdlconshr.o: sdlconshr.nasm sdlconshr.inc
 

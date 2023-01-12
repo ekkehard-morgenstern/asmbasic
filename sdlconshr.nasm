@@ -41,7 +41,7 @@
                         global      sdl_worker_handle,sdl_worker_result
                         global      sdl_ticks,sdl_return_pressed
                         global      sdl_textcursor_visible,sdl_text_attribute
-                        global      sdl_want_input,sdl_have_input,sdl_epollhnd
+                        global      sdl_want_input,sdl_have_input
 
 sdl_worker_handle       resq        1
 sdl_worker_result       resq        1
@@ -57,8 +57,6 @@ sdl_textcursor_pos      resq        1
 sdl_ticks               resq        1
 sdl_textcursor_visible  resq        1
 sdl_text_attribute      resq        1
-sdl_epollhnd            resd        1
-                        resd        1
 
 sdl_textscreen_width    resq        1
 sdl_textscreen_height   resq        1
