@@ -245,7 +245,7 @@ sdl_waitepoll           enter       0x20,0
                         jmp         .nextevt
 
 .eintr2                 or          r13,SDL_WEP_SIGNALLED
-                        ; jmp         .nextevt
+                        jmp         .readevt
 
 .notexiting:
 .nextevt                add         rbx,epollevt_size
