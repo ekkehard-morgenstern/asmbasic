@@ -27,6 +27,7 @@
                         bits        64
 
                         %include    "sdlconshr.inc"
+                        %include    "sdlconcev.inc"
 
                         section     .text
 
@@ -46,7 +47,7 @@
                         extern      sdl_textscreen_size,sdl_textcursor_pos
                         extern      sdl_worker,sdl_worker_doquit,sdl_init_ok
                         extern      sdl_worker_handle,sdl_worker_result
-                        extern      ucinsavectx,ucinloadctx
+                        extern      ucinsavectx,ucinloadctx,sdl_waitepoll
                         extern      uclineininit,ucgetcp,sdl_initepoll
 
 sdl_launch              enter       0,0
@@ -336,13 +337,35 @@ sdl_readln              enter       0,0
 .waitinput              cmp         qword [sdl_worker_terminated],0
                         jne         .workerquit
 
+                        call        sdl_waitepoll
+
+                        mov         rdx,rax
+                        and         rdx,SDL_WEP_SIGNALLED
+                        jnz         .signalled
+
+                        mov         rdx,rax
+                        and         rdx,SDL_WEP_ERROR
+                        jnz         .error
+
+                        mov         rdx,rax
+                        and         rdx,SDL_WEP_WORKERDOWN
+                        jnz         .workerquit
+
+                        mov         rdx,rax
+                        and         rdx,SDL_WEP_SPECIALKEY
+                        jz          .notspecialkey
+
                         cmp         qword [sdl_return_pressed],0
                         jne         .gotreturn
 
-                        mov         rdi,50
-                        call        SDL_Delay
-                        jmp         .waitinput
+.notspecialkey          mov         rdx,rax
+                        and         rdx,SDL_WEP_REGULARKEY
+                        ; jz          .notregularkey
 
+.notregularkey          jmp         .waitinput
+
+.signalled:
+.error:
 .workerquit:
 .gotreturn              mov         qword [sdl_want_input],0
 

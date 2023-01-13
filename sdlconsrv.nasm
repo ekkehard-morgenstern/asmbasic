@@ -27,6 +27,7 @@
                         bits        64
 
                         %include    "sdlconshr.inc"
+                        %include    "sdlconcev.inc"
 
                         section     .text
 
@@ -53,9 +54,8 @@
                         extern      SDL_RenderSetLogicalSize,SDL_CreateTexture
                         extern      SDL_DestroyTexture,SDL_RenderCopy
                         extern      SDL_UpdateTexture,SDL_SetTextureBlendMode
-                        extern      SDL_GetTicks,ucinsavectx,ucinloadctx
-                        extern      uclineininit,ucgetcp,epoll_create1,perror
-                        extern      close
+                        extern      SDL_GetTicks
+                        extern      uclineininit,ucgetcp,sdl_raiseepoll
 
                         ; WORKER THREAD
                         ; - must terminate upon sdl_worker_doquit
@@ -276,6 +276,8 @@ sdl_worker              enter       0,0
                         jmp         .sleeploop
 
 .end                    mov         qword [sdl_worker_terminated],1
+                        mov         rdi,SDL_WEP_WORKERDOWN
+                        call        sdl_raiseepoll
                         leave
                         ret
 
@@ -299,6 +301,8 @@ sdl_specialkey          enter       0,0
 .backspace              jmp         .end
 
 .return                 mov         qword [sdl_return_pressed],1
+                        mov         rdi,SDL_WEP_SPECIALKEY
+                        call        sdl_raiseepoll
                         jmp         .end
 
                         ; enter a Unicode character
@@ -309,6 +313,9 @@ sdl_enterinput          enter       0x10,0
                         call        strlen
                         mov         rcx,rax
 
+
+                        mov         rdi,SDL_WEP_REGULARKEY
+                        call        sdl_raiseepoll
 
                         mov         r12,[rbp-0x08]
                         leave

@@ -51,7 +51,7 @@ EINTR                   equ         4
                         extern      exit,atexit,eventfd,epoll_ctl,epoll_wait
                         extern      __errno_location,read,write
 
-                        global      sdl_initepoll
+                        global      sdl_initepoll,sdl_raiseepoll,sdl_waitepoll
 
 
 sdl_initepoll           enter       0x20,0
@@ -169,11 +169,11 @@ sdl_waitepoll           enter       0x20,0
                         mov         [rbp-0x10],r12
                         mov         [rbp-0x18],r13
 
-                        lea         rbx,[sdl_first_event]
+                        lea         rbx,[sdl_epoll_result]
                         xor         r13,r13
 
                         movsx       rdi,dword [sdl_epollhnd]
-                        lea         rsi,[sdl_epoll_result]
+                        mov         rsi,rbx
                         mov         rdx,SDL_EVTCNT
                         mov         rcx,20  ; wait for 20 ms = 1/50 sec max
                         call        epoll_wait
@@ -196,7 +196,7 @@ sdl_waitepoll           enter       0x20,0
                         jmp         .end
 
 .noterr                 cmp         eax,0
-                        jnz         .notzero
+                        jne         .notzero
 
                         or          r13,SDL_WEP_TIMEDOUT
                         jmp         .end
