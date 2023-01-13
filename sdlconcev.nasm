@@ -49,7 +49,7 @@ EINTR                   equ         4
 
                         extern      epoll_create1,perror,sdl_epollhnd,close
                         extern      exit,atexit,eventfd,epoll_ctl,epoll_wait
-                        extern      __errno_location,read
+                        extern      __errno_location,read,write
 
                         global      sdl_initepoll
 
@@ -162,6 +162,8 @@ sdl_cleanupepoll        enter       0x10,0
                         leave
                         ret
 
+                        ; returns: rax - bit mask of events that occurred
+
 sdl_waitepoll           enter       0x20,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
@@ -259,6 +261,59 @@ sdl_waitepoll           enter       0x20,0
                         leave
                         ret
 
+                        ; rdi - bit mask of events that occurred
+sdl_raiseepoll          enter       0x10,0
+                        mov         [rbp-0x08],rbx
+
+                        mov         rbx,rdi
+
+                        mov         rax,rbx
+                        and         rax,SDL_WEP_REGULARKEY
+                        jz          .noregkey
+
+                        mov         edi,[sdl_regular_keypress]
+                        call        sdl_writeevt
+
+.noregkey               mov         rax,rbx
+                        and         rax,SDL_WEP_SPECIALKEY
+                        jz          .nospeckey
+
+                        mov         edi,[sdl_special_keypress]
+                        call        sdl_writeevt
+
+.nospeckey              mov         rax,rbx
+                        and         rax,SDL_WEP_WORKERDOWN
+                        jz          .noworkdown
+
+                        mov         edi,[sdl_worker_exiting]
+                        call        sdl_writeevt
+
+.noworkdown             mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+                        ; edi - event handle
+sdl_writeevt            enter       0x10,0
+
+.retry                  lea         rsi,[rbp-0x10]
+                        mov         qword [rsi],1
+                        mov         rdx,8
+                        call        write
+
+                        cmp         rax,-1
+                        jne         .noerror
+
+                        call        __errno_location
+                        mov         rax,[rax]
+                        cmp         rax,EINTR
+                        je          .retry
+
+                        lea         rdi,[sdl_writeerrpfx]
+                        call        perror
+
+.noerror                leave
+                        ret
+
                         section     .bss
 
 sdl_epollhnd            resd        1
@@ -279,3 +334,4 @@ sdl_closeerrpfx         db          '? close(2)',0
 sdl_epollctlpfx         db          '? epoll_ctl(2)',0
 sdl_epollwaitpfx        db          '? epoll_wait(2)',0
 sdl_readerrpfx          db          '? read(2)',0
+sdl_writeerrpfx         db          '? write(2)',0
