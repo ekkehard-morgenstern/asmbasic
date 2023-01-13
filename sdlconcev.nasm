@@ -180,8 +180,8 @@ sdl_waitepoll           enter       0x20,0
                         jne         .noterr
 
                         call        __errno_location
-                        mov         rax,[rax]
-                        cmp         rax,EINTR
+                        mov         eax,[rax]
+                        cmp         eax,EINTR
                         je          .eintr
 
                         lea         rdi,[sdl_epollwaitpfx]
@@ -230,6 +230,23 @@ sdl_waitepoll           enter       0x20,0
                         mov         rdx,8
                         call        read
 
+                        cmp         rax,-1
+                        jne         .nextevt
+
+                        call        __errno_location
+                        mov         eax,[rax]
+                        cmp         eax,EINTR
+                        je          .eintr2
+
+                        lea         rdi,[sdl_readerrpfx]
+                        call        perror
+
+                        or          r13,SDL_WEP_ERROR
+                        jmp         .nextevt
+
+.eintr2                 or          r13,SDL_WEP_SIGNALLED
+                        ; jmp         .nextevt
+
 .notexiting:
 .nextevt                add         rbx,epollevt_size
                         dec         r12
@@ -261,3 +278,4 @@ sdl_evtcrtpfx           db          '? eventfd(2)',0
 sdl_closeerrpfx         db          '? close(2)',0
 sdl_epollctlpfx         db          '? epoll_ctl(2)',0
 sdl_epollwaitpfx        db          '? epoll_wait(2)',0
+sdl_readerrpfx          db          '? read(2)',0
