@@ -27,6 +27,7 @@
                         bits        64
 
                         %include    "sdlconshr.inc"
+                        %include    "sdlconcev.inc"
 
 SDL_EVTCNT              equ         3
 
@@ -41,10 +42,14 @@ EPOLL_CTL_ADD           equ         1
 EPOLL_CTL_DEL           equ         2
 EPOLLIN                 equ         1
 
+; cf. /usr/include/asm-generic/errno-base.h
+EINTR                   equ         4
+
                         section     .text
 
                         extern      epoll_create1,perror,sdl_epollhnd,close
-                        extern      exit,atexit,eventfd,epoll_ctl
+                        extern      exit,atexit,eventfd,epoll_ctl,epoll_wait
+                        extern      __errno_location,read
 
                         global      sdl_initepoll
 
@@ -92,7 +97,7 @@ sdl_initepoll           enter       0x20,0
                         movsx       rdx,eax
                         mov         rcx,r13
                         mov         dword [rcx+ee_flags],EPOLLIN
-                        mov         qword [rcx+ee_data],0
+                        mov         [rcx+ee_data],rdx
                         call        epoll_ctl
 
                         cmp         eax,-1
@@ -157,6 +162,86 @@ sdl_cleanupepoll        enter       0x10,0
                         leave
                         ret
 
+sdl_waitepoll           enter       0x20,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],r13
+
+                        lea         rbx,[sdl_first_event]
+                        xor         r13,r13
+
+                        movsx       rdi,dword [sdl_epollhnd]
+                        lea         rsi,[sdl_epoll_result]
+                        mov         rdx,SDL_EVTCNT
+                        mov         rcx,20  ; wait for 20 ms = 1/50 sec max
+                        call        epoll_wait
+
+                        cmp         eax,-1
+                        jne         .noterr
+
+                        call        __errno_location
+                        mov         rax,[rax]
+                        cmp         rax,EINTR
+                        je          .eintr
+
+                        lea         rdi,[sdl_epollwaitpfx]
+                        call        perror
+
+                        or          r13,SDL_WEP_ERROR
+                        jmp         .end
+
+.eintr                  or          r13,SDL_WEP_SIGNALLED
+                        jmp         .end
+
+.noterr                 cmp         eax,0
+                        jnz         .notzero
+
+                        or          r13,SDL_WEP_TIMEDOUT
+                        jmp         .end
+
+.notzero                movsx       r12,eax
+
+.evtloop                mov         eax,[rbx+ee_flags]
+                        and         eax,EPOLLIN
+                        jz          .nextevt
+
+                        mov         rax,[rbx+ee_data]
+
+                        cmp         eax,[sdl_regular_keypress]
+                        jne         .notregkey
+
+                        or          r13,SDL_WEP_REGULARKEY
+                        jmp         .readevt
+
+.notregkey              cmp         eax,[sdl_special_keypress]
+                        jne         .notspecial
+
+                        or          r13,SDL_WEP_SPECIALKEY
+                        jmp         .readevt
+
+.notspecial             cmp         eax,[sdl_worker_exiting]
+                        jne         .notexiting
+
+                        or          r13,SDL_WEP_WORKERDOWN
+
+                        ; dummy read from event object
+.readevt                movsx       rdi,eax
+                        lea         rsi,[rbp-0x20]
+                        mov         rdx,8
+                        call        read
+
+.notexiting:
+.nextevt                add         rbx,epollevt_size
+                        dec         r12
+                        jnz         .evtloop
+
+.end                    mov         rax,r13
+                        mov         r13,[rbp-0x18]
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
                         section     .bss
 
 sdl_epollhnd            resd        1
@@ -165,7 +250,8 @@ sdl_special_keypress    resd        1
 sdl_regular_keypress    resd        1
 sdl_worker_exiting      resd        1
 sdl_last_event          resq        1
-sdl_epoll_evbuf         resb        epollevt_size * SDL_EVTCNT
+sdl_epoll_evbuf         resd        ( epollevt_size * SDL_EVTCNT ) / 4
+sdl_epoll_result        resd        ( epollevt_size * SDL_EVTCNT ) / 4
                         align       8,resb 1
 
                         section     .rodata
@@ -174,3 +260,4 @@ sdl_epollcrtpfx         db          '? epoll_create1(2)',0
 sdl_evtcrtpfx           db          '? eventfd(2)',0
 sdl_closeerrpfx         db          '? close(2)',0
 sdl_epollctlpfx         db          '? epoll_ctl(2)',0
+sdl_epollwaitpfx        db          '? epoll_wait(2)',0

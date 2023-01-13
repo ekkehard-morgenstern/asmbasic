@@ -69,7 +69,7 @@ sdlconsrv.o: sdlconsrv.nasm sdlconshr.inc
 
 sdlconcli.o: sdlconcli.nasm sdlconshr.inc
 
-sdlconcev.o: sdlconcev.nasm sdlconshr.inc
+sdlconcev.o: sdlconcev.nasm sdlconshr.inc sdlconcev.inc
 
 sdlconshr.o: sdlconshr.nasm sdlconshr.inc
 
