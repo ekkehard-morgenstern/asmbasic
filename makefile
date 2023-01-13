@@ -1,4 +1,4 @@
-#   AsmBASIC - a BASIC interpreter written in assembly language
+#   AsmBASIC - a BASIC compile and go system written in assembly language
 #   Copyright (C) 2022  Ekkehard Morgenstern
 #
 #   This program is free software: you can redistribute it and/or modify

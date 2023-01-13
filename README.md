@@ -1,6 +1,6 @@
 # AsmBASIC
 
-An assembly language BASIC interpreter, initially for x86-64.
+An assembly language BASIC compile and go system, initially for x86-64.
 
 The project is in its earliest stages of development, and I have little spare time, so don't expect much.
 Code in this repository can change and be restructured without prior warning.
@@ -18,9 +18,9 @@ To use AsmBASIC, either run it on the command line with "./asmbasic" or create a
 
 When run from the command line, you can specify the "--help" option to see its command line parameters, as in "./asmbasic --help".
 
-In Standard I/O terminal emulation (switched on with the "--stdio" option), the interpreter currently enters a loop asking for BASIC input lines and outputting the tokenized form as well as the detokenized form of the input lines.
+In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines and outputting the tokenized form as well as the detokenized form of the input lines.
 
-In default or SDL mode (default, or switched on with the "--sdl" option), the interpreter currently just shows a blank screen with a blinking cursor. I'm still working on text input/output in the SDL terminal emulation.
+In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently just shows a blank screen with a blinking cursor. I'm still working on text input/output in the SDL terminal emulation.
 
 ## Limitations
 
