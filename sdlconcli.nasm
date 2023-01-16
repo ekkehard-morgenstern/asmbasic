@@ -29,6 +29,9 @@
                         %include    "sdlconshr.inc"
                         %include    "sdlconcev.inc"
 
+SDL_PRINTBUFSIZE        equ         16384
+SDL_KBDINPBUFSIZE       equ         128
+
                         section     .text
 
                         global      sdl_launch
@@ -49,6 +52,7 @@
                         extern      sdl_worker_handle,sdl_worker_result
                         extern      ucinsavectx,ucinloadctx,sdl_waitepoll
                         extern      uclineininit,ucgetcp,sdl_initepoll
+                        extern      sdl_kbdinit,sdl_kbdgetbuf
 
 sdl_launch              enter       0,0
 
@@ -57,6 +61,9 @@ sdl_launch              enter       0,0
 
                         ; initialize epoll stuff
                         call        sdl_initepoll
+
+                        ; initialize keyboard stuff
+                        call        sdl_kbdinit
 
                         ; clear out screen and work buffers
                         lea         rdi,[sdl_screenbuf]
@@ -360,7 +367,23 @@ sdl_readln              enter       0,0
 
 .notspecialkey          mov         rdx,rax
                         and         rdx,SDL_WEP_REGULARKEY
-                        ; jz          .notregularkey
+                        jz          .notregularkey
+
+                        lea         rdi,[sdl_kbd_input]
+                        mov         rsi,sdl_kbd_input_size
+                        call        sdl_kbdgetbuf
+
+                        test        rax,rax
+                        jz          .skipregkey
+
+                        lea         rdi,[sdl_kbdprinttest]
+                        mov         rsi,rax
+                        mov         rdx,rax
+                        lea         rcx,[sdl_kbd_input]
+                        xor         al,al
+                        call        sdl_printf
+
+.skipregkey:
 
 .notregularkey          jmp         .waitinput
 
@@ -411,11 +434,15 @@ sdl_cls                 enter       0,0
 sdl_printbuf            resq        SDL_PRINTBUFSIZE/8
 sdl_printbuf_size       equ         $-sdl_printbuf
 
+sdl_kbd_input           resq        SDL_KBDINPBUFSIZE/8
+sdl_kbd_input_size      equ         $-sdl_kbd_input
+
                         section     .rodata
 
 sdl_worker_moniker      db          'SDL worker thread',0
 sdl_initerr             db          '? SDL_Init failed: %s',10,0
 sdl_thrcrterr           db          '? SDL_CreateThread failed: %s',10,0
 sdl_thrreperr           db          '? SDL worker failed',10,0
+sdl_kbdprinttest        db          '%-*.*s',0
 
                         align       8,db 0

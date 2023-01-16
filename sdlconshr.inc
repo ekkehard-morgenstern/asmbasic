@@ -26,7 +26,6 @@
                         cpu         x64
                         bits        64
 
-SDL_PRINTBUFSIZE        equ         16384
 SDL_TEXTSCREENWIDTH     equ         80
 SDL_TEXTSCREENHEIGHT    equ         25
 SDL_TEXTSCREENCELLS     equ         SDL_TEXTSCREENWIDTH*SDL_TEXTSCREENHEIGHT

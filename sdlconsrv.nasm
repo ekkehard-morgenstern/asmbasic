@@ -42,7 +42,7 @@
                         extern      sdl_workbuf,sdl_textcursor_pos
                         extern      sdl_textscreen_width,sdl_textscreen_height
                         extern      sdl_textbgpalette,sdl_textfgpalette
-                        extern      fprintf,stderr
+                        extern      fprintf,stderr,printf
                         extern      SDL_Init,SDL_GetError
                         extern      SDL_Quit,SDL_CreateThread,SDL_WaitThread
                         extern      SDL_Delay,SDL_CreateWindow,SDL_DestroyWindow
@@ -56,6 +56,7 @@
                         extern      SDL_UpdateTexture,SDL_SetTextureBlendMode
                         extern      SDL_GetTicks
                         extern      uclineininit,ucgetcp,sdl_raiseepoll
+                        extern      sdl_kbdputbuf
 
                         ; WORKER THREAD
                         ; - must terminate upon sdl_worker_doquit
@@ -309,10 +310,13 @@ sdl_specialkey          enter       0,0
                         ; rdi - NUL-terminated string in UTF-8 format
 sdl_enterinput          enter       0x10,0
                         mov         [rbp-0x08],r12
+
                         mov         r12,rdi
                         call        strlen
-                        mov         rcx,rax
 
+                        mov         rdi,r12
+                        mov         rsi,rax
+                        call        sdl_kbdputbuf
 
                         mov         rdi,SDL_WEP_REGULARKEY
                         call        sdl_raiseepoll
@@ -458,5 +462,6 @@ sdl_crtrnderr           db          '? SDL_CreateRenderer failed: %s',10,0
 sdl_rndscalqual         db          'SDL_RENDER_SCALE_QUALITY',0
 sdl_linear              db          'linear',0
 sdl_crttexerr           db          '? SDL_CreateTexture failed: %s',10,0
+sdl_debugprtfmt         db          '<<%s>>',10,0
 
                         align       8,db 0
