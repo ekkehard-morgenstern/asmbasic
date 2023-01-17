@@ -29,7 +29,7 @@
                         %include    "sdlconshr.inc"
                         %include    "sdlconcev.inc"
 
-SDL_EVTCNT              equ         3
+SDL_EVTCNT              equ         4
 
                         ; cf. epoll_ctl(2)
                         struc       epollevt
@@ -226,6 +226,11 @@ sdl_waitepoll           enter       0x20,0
 
                         or          r13,SDL_WEP_WORKERDOWN
 
+.notexiting             cmp         eax,[sdl_worker_initialized]
+                        jne         .notinitialized
+
+                        or          r13,SDL_WEP_WORKERINITDONE
+
                         ; dummy read from event object
 .readevt                movsx       rdi,eax
                         lea         rsi,[rbp-0x20]
@@ -249,7 +254,7 @@ sdl_waitepoll           enter       0x20,0
 .eintr2                 or          r13,SDL_WEP_SIGNALLED
                         jmp         .readevt
 
-.notexiting:
+.notinitialized:
 .nextevt                add         rbx,epollevt_size
                         dec         r12
                         jnz         .evtloop
@@ -288,7 +293,14 @@ sdl_raiseepoll          enter       0x10,0
                         mov         edi,[sdl_worker_exiting]
                         call        sdl_writeevt
 
-.noworkdown             mov         rbx,[rbp-0x08]
+.noworkdown             mov         rax,rbx
+                        and         rax,SDL_WEP_WORKERINITDONE
+                        jz          .noworkinit
+
+                        mov         edi,[sdl_worker_initialized]
+                        call        sdl_writeevt
+
+.noworkinit             mov         rbx,[rbp-0x08]
                         leave
                         ret
 
@@ -321,6 +333,7 @@ sdl_first_event:
 sdl_special_keypress    resd        1
 sdl_regular_keypress    resd        1
 sdl_worker_exiting      resd        1
+sdl_worker_initialized  resd        1
 sdl_last_event          resq        1
 sdl_epoll_evbuf         resd        ( epollevt_size * SDL_EVTCNT ) / 4
 sdl_epoll_result        resd        ( epollevt_size * SDL_EVTCNT ) / 4

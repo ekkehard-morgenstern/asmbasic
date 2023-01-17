@@ -36,7 +36,7 @@
                         extern      sdl_background_rgba,sdl_windowtitle
                         extern      sdl_init_ok,sdl_worker_doquit
                         extern      sdl_worker_terminated
-                        extern      sdl_ticks,sdl_return_pressed
+                        extern      sdl_ticks
                         extern      sdl_textcursor_visible,sdl_text_attribute
                         extern      sdl_want_input,sdl_have_input,sdl_screenbuf
                         extern      sdl_workbuf,sdl_textcursor_pos
@@ -84,7 +84,9 @@ sdl_worker              enter       0,0
                         call        fprintf
 
 .init_failed            mov         qword [sdl_init_ok],-1
-                        jmp         .sleeploop
+                        mov         rdi,SDL_WEP_WORKERINITDONE
+                        call        sdl_raiseepoll
+                        jmp         .end
 
 .window_ok              mov         [sdl_window],rax
 
@@ -153,7 +155,12 @@ sdl_worker              enter       0,0
 
                         ; init complete
                         mov         qword [sdl_worker_terminated],0
+                        mov         qword [sdl_want_input],0
+                        mov         qword [sdl_have_input],0
                         mov         qword [sdl_init_ok],1
+
+                        mov         rdi,SDL_WEP_WORKERINITDONE
+                        call        sdl_raiseepoll
 
                         ; MAIN LOOP
 .mainloop               mov         rax,[sdl_worker_doquit]
@@ -259,23 +266,6 @@ sdl_worker              enter       0,0
                         mov         rdi,[sdl_window]
                         call        SDL_DestroyWindow
 
-                        cmp         qword [sdl_want_input],0
-                        je          .notwaiting
-
-                        ; mimick a RETURN press to wake up the main thread
-                        ; if it's waiting on input
-                        mov         qword [sdl_return_pressed],1
-
-.notwaiting             jmp         .end
-
-.sleeploop              mov         rax,[sdl_worker_doquit]
-                        test        rax,rax
-                        jnz         .end
-
-                        mov         rdi,50
-                        call        SDL_Delay
-                        jmp         .sleeploop
-
 .end                    mov         qword [sdl_worker_terminated],1
                         mov         rdi,SDL_WEP_WORKERDOWN
                         call        sdl_raiseepoll
@@ -299,11 +289,12 @@ sdl_specialkey          enter       0,0
 .escape                 mov         qword [sdl_worker_doquit],1
                         jmp         .end
 
-.backspace              jmp         .end
+.backspace              lea         rdi,[sdl_backspacekey]
+                        call        sdl_enterinput
+                        jmp         .end
 
-.return                 mov         qword [sdl_return_pressed],1
-                        mov         rdi,SDL_WEP_SPECIALKEY
-                        call        sdl_raiseepoll
+.return                 lea         rdi,[sdl_returnkey]
+                        call        sdl_enterinput
                         jmp         .end
 
                         ; enter a Unicode character
@@ -463,5 +454,7 @@ sdl_rndscalqual         db          'SDL_RENDER_SCALE_QUALITY',0
 sdl_linear              db          'linear',0
 sdl_crttexerr           db          '? SDL_CreateTexture failed: %s',10,0
 sdl_debugprtfmt         db          '<<%s>>',10,0
+sdl_returnkey           db          10,0
+sdl_backspacekey        db          8,0
 
                         align       8,db 0

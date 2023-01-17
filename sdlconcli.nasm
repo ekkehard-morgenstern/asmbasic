@@ -42,9 +42,9 @@ SDL_KBDINPBUFSIZE       equ         128
                         extern      SDL_Quit,SDL_CreateThread,SDL_WaitThread
                         extern      SDL_Delay, ucinsavectx,ucinloadctx
                         extern      sdl_screenbuf,sdl_screenbuf_size
-                        extern      sdl_text_attribute,sdl_return_pressed
+                        extern      sdl_text_attribute
                         extern      sdl_have_input,sdl_want_input
-                        extern      sdl_worker_terminated,sdl_return_pressed
+                        extern      sdl_worker_terminated
                         extern      sdl_workbuf,sdl_workbuf_size
                         extern      sdl_textscreen_width,sdl_textscreen_height
                         extern      sdl_textscreen_size,sdl_textcursor_pos
@@ -135,13 +135,13 @@ sdl_launch              enter       0,0
                         lea         rdi,[sdl_cleanupworker]
                         call        atexit
 
-.wait_feedback          cmp         qword [sdl_init_ok],0
-                        jne         .thread_feedback
-                        mov         rdi,50
-                        call        SDL_Delay
-                        jmp         .wait_feedback
+.wait_feedback          call        sdl_waitepoll
 
-.thread_feedback        cmp         qword [sdl_init_ok],-1
+                        mov         rdx,rax
+                        and         rdx,SDL_WEP_WORKERINITDONE
+                        jz          .wait_feedback
+
+                        cmp         qword [sdl_init_ok],-1
                         je          .init_failed
 
                         ; init ok
@@ -225,8 +225,14 @@ sdl_printf              enter       0x30,0
                         call        sdl_outputlf
                         jmp         .nextchar
 
+.notcarriagereturn      cmp         rax,8
+                        jne         .notbackspace
+
+                        call        sdl_outputbs
+                        jmp         .nextchar
+
                         ; write character at the current text cursor position
-.notcarriagereturn      mov         rdi,rax
+.notbackspace           mov         rdi,rax
                         call        sdl_outputcp
                         jmp         .nextchar
 
@@ -235,6 +241,18 @@ sdl_printf              enter       0x30,0
                         call        ucinloadctx
 
                         leave
+                        ret
+
+sdl_outputbs            enter       0,0
+
+                        mov         rax,[sdl_textcursor_pos]
+                        test        rax,rax
+                        jz          .end
+
+                        dec         rax
+                        mov         [sdl_textcursor_pos],rax
+
+.end                    leave
                         ret
 
 sdl_outputlf            enter       0,0
@@ -334,11 +352,14 @@ sdl_scrollup            enter       0,0
                         ; CLIENT API
                         ; rdi - buffer
                         ; rsi - bufsiz
-sdl_readln              enter       0,0
+                        ; [rbp-0x18] - start cursor position
+sdl_readln              enter       0x20,0
+                        mov         [rbp-0x08],rdi
+                        mov         [rbp-0x10],rsi
+                        mov         rax,[sdl_textcursor_pos]
+                        mov         [rbp-0x18],rax
                         mov         byte [rdi],0
 
-                        mov         qword [sdl_return_pressed],0
-                        mov         qword [sdl_have_input],0
                         mov         qword [sdl_want_input],1
 
 .waitinput              cmp         qword [sdl_worker_terminated],0
@@ -360,10 +381,7 @@ sdl_readln              enter       0,0
 
                         mov         rdx,rax
                         and         rdx,SDL_WEP_SPECIALKEY
-                        jz          .notspecialkey
-
-                        cmp         qword [sdl_return_pressed],0
-                        jne         .gotreturn
+                        ;jz          .notspecialkey
 
 .notspecialkey          mov         rdx,rax
                         and         rdx,SDL_WEP_REGULARKEY

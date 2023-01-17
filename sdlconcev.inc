@@ -30,6 +30,7 @@
 SDL_WEP_ERROR           equ         1 ; an error occurred
 SDL_WEP_TIMEDOUT        equ         2 ; no event, timed out
 SDL_WEP_SIGNALLED       equ         4 ; EINTR occurred, process received signal
-SDL_WEP_WORKERDOWN      equ         8 ; worker thread terminated itself
-SDL_WEP_SPECIALKEY      equ         16 ; a special key was pressed
-SDL_WEP_REGULARKEY      equ         32 ; a regular key was pressed
+SDL_WEP_WORKERINITDONE  equ         8 ; worker thread has been initialized
+SDL_WEP_WORKERDOWN      equ         16 ; worker thread terminated itself
+SDL_WEP_SPECIALKEY      equ         32 ; a special key was pressed
+SDL_WEP_REGULARKEY      equ         64 ; a regular key was pressed

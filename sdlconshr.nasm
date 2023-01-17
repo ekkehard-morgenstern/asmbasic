@@ -33,13 +33,13 @@
                         global      sdl_worker_handle,sdl_worker_result
                         global      sdl_worker_doquit,sdl_worker_terminated
                         global      sdl_init_ok,sdl_want_input,sdl_have_input
-                        global      sdl_background_rgba,sdl_return_pressed
+                        global      sdl_background_rgba
                         global      sdl_screenbuf,sdl_workbuf,sdl_screenmem
                         global      sdl_textcursor_pos,sdl_textscreen_width
                         global      sdl_textscreen_height,sdl_textscreen_size
                         global      sdl_worker_doquit,sdl_init_ok
                         global      sdl_worker_handle,sdl_worker_result
-                        global      sdl_ticks,sdl_return_pressed
+                        global      sdl_ticks
                         global      sdl_textcursor_visible,sdl_text_attribute
                         global      sdl_want_input,sdl_have_input
 
@@ -52,7 +52,6 @@ sdl_init_ok             resq        1
 sdl_want_input          resq        1
 sdl_have_input          resq        1
 sdl_background_rgba     resq        1
-sdl_return_pressed      resq        1
 sdl_textcursor_pos      resq        1
 sdl_ticks               resq        1
 sdl_textcursor_visible  resq        1
