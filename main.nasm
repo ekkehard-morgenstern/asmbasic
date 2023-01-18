@@ -267,7 +267,28 @@ coption                 db          'c',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
-tokenizertest           db          'AsmBASIC tokenizer test',10,0
+tokenizertest           db          'AsmBASIC color test',10
+                        db          'background colors 0-7: '
+                        db          27,'[40m',' '
+                        db          27,'[41m',' '
+                        db          27,'[42m',' '
+                        db          27,'[43m',' '
+                        db          27,'[44m',' '
+                        db          27,'[45m',' '
+                        db          27,'[46m',' '
+                        db          27,'[47m',' '
+                        db          27,'[m',10
+                        db          'foreground colors 0-7: '
+                        db          27,'[30m','*'
+                        db          27,'[31m','*'
+                        db          27,'[32m','*'
+                        db          27,'[33m','*'
+                        db          27,'[34m','*'
+                        db          27,'[35m','*'
+                        db          27,'[36m','*'
+                        db          27,'[37m','*'
+                        db          27,'[m',10,10
+                        db          'AsmBASIC tokenizer test',10,0
 
 helptext                db          'Usage: %s [options] [file]',10
                         db          'Options:',10

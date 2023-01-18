@@ -31,6 +31,7 @@
 
 SDL_PRINTBUFSIZE        equ         16384
 SDL_KBDINPBUFSIZE       equ         128
+SDL_ESCSEQBUFSIZE       equ         64
 
                         section     .text
 
@@ -208,8 +209,61 @@ sdl_printf              enter       0x30,0
                         cmp         rax,-1
                         je          .end
 
+                        ; check for pending escape sequence
+                        cmp         byte [sdl_escseqflag],0
+                        je          .notescseq
+
+                        cmp         byte [sdl_escseqflag],1
+                        jne         .csiseq
+
+                        cmp         rax,'['
+                        jne         .stopescseq
+
+                        mov         byte [sdl_escseqflag],2     ; csi seq
+                        jmp         .nextchar
+
+                        ; CSI sequence
+                        ; if character is '0'..'9' or ';', add to sequence
+.csiseq                 cmp         rax,'0'
+                        jb          .lower0
+                        cmp         rax,'9'
+                        ja          .greater9
+
+.stoescchr              mov         dl,[sdl_escseqbufpos]
+                        cmp         dl,SDL_ESCSEQBUFSIZE-1
+                        jae         .nextchar
+
+                        movzx       rdx,dl
+                        mov         [sdl_escseqbuf+rdx],al
+                        inc         dl
+                        mov         [sdl_escseqbufpos],dl
+                        jmp         .nextchar
+
+.greater9               cmp         rax,';'
+                        je          .stoescchr
+
+.lower0                 mov         [sdl_escseqtype],al
+                        mov         byte [sdl_escseqflag],0
+                        movzx       rdx,byte [sdl_escseqbufpos]
+                        mov         byte [sdl_escseqbuf+rdx],0
+
+                        call        sdl_execescseq
+                        jmp         .nextchar
+
+                        ; check for escape character
+.notescseq              cmp         rax,27
+                        jne         .notescape
+
+                        mov         byte [sdl_escseqbufpos],0
+                        mov         byte [sdl_escseqtype],0
+                        mov         byte [sdl_escseqflag],1
+                        jmp         .nextchar
+
+.stopescseq             mov         byte [sdl_escseqflag],0
+                        jmp         .nextchar
+
                         ; check for line feed character
-                        cmp         rax,10
+.notescape              cmp         rax,10
                         jne         .notlinefeed
 
                         call        sdl_outputlf
@@ -243,6 +297,96 @@ sdl_printf              enter       0x30,0
                         leave
                         ret
 
+                        ; execute an escape sequence
+sdl_execescseq          enter       0,0
+                        lea         rsi,[sdl_escseqbuf]
+                        cld
+                        xor         dh,dh   ; dh - param cnt
+.nextparam              xor         ah,ah   ; ah - param val
+
+.getchr                 lodsb
+                        cmp         al,0
+                        je          .eos
+                        cmp         al,';'
+                        je          .semic
+                        cmp         al,'0'
+                        jb          .getchr
+                        cmp         al,'9'
+                        ja          .getchr
+
+                        ; ah = ah*10 + (al-'0')
+                        mov         dl,ah   ; ah *= 10
+                        shl         ah,3
+                        add         ah,dl
+                        add         ah,dl
+                        sub         al,'0'  ; ah += al-'0'
+                        add         ah,al
+                        jmp         .getchr
+
+.eos:
+.semic                  test        ah,ah
+                        jz          .zeroparam
+
+                        cmp         dh,10
+                        jae         .endparams
+
+                        mov         cl,dh
+                        movzx       rcx,cl
+                        mov         [sdl_escapeparams+rcx],ah
+                        inc         dh
+
+.zeroparam              test        al,al
+                        jnz         .nextparam
+
+.endparams              mov         [sdl_numescparams],dh
+                        mov         al,[sdl_escseqtype]
+
+                        cmp         al,'m'
+                        jne         .notmseq
+
+                        xor         rcx,rcx
+                        xor         rdx,rdx
+.nextmparam             cmp         cl,[sdl_numescparams]
+                        jae         .endmparam
+                        mov         al,[sdl_escapeparams+rcx]
+                        cmp         al,30
+                        jb          .lower30
+                        cmp         al,37
+                        ja          .higher37
+                        mov         dl,al   ; fg col
+                        sub         dl,30
+.lower30:
+.lower40:
+.higher47:
+.nextmparam2            inc         cl
+                        jmp         .nextmparam
+
+.higher37               cmp         al,40
+                        jb          .lower40
+                        cmp         al,47
+                        ja          .higher47
+                        mov         dh,al
+                        sub         dh,40
+
+.endmparam              mov         rdi,rdx
+                        call        sdl_color
+                        jmp         .end
+
+.notmseq                cmp         al,'H'
+                        jne         .notHseq
+
+                        nop
+
+.notHseq                cmp         al,'J'
+                        jne         .notJseq
+
+                        nop
+
+.notJseq:
+.end                    leave
+                        ret
+
+                        ; output BACKSPACE character
 sdl_outputbs            enter       0,0
 
                         mov         rax,[sdl_textcursor_pos]
@@ -458,10 +602,13 @@ sdl_readln              enter       0x20,0
                         ; rdi - bits 8..15: bg col, bits 0..7: fg col
 sdl_color               enter       0,0
                         mov         rax,rdi
-                        and         rax,0x0f00
-                        shr         rax,4
+                        and         rax,0x0700
+                        shr         ax,8
+                        mov         al,[sdl_bg_inktable+rax]
+                        shl         al,4
                         mov         rdx,rdi
-                        and         rdx,0x000f
+                        and         rdx,0x0007
+                        mov         dl,[sdl_fg_inktable+rdx]
                         or          rax,rdx
                         mov         [sdl_text_attribute],rax
                         leave
@@ -488,6 +635,19 @@ sdl_cls                 enter       0,0
                         leave
                         ret
 
+                        ; rdi - ink number
+                        ; rsi - foreground color index
+                        ; rdx - background color index
+sdl_ink                 enter       0,0
+                        and         rdi,7
+                        and         rsi,15
+                        mov         rcx,rsi
+                        and         rdx,15
+                        mov         [sdl_fg_inktable+rdi],cl
+                        mov         [sdl_bg_inktable+rdi],dl
+                        leave
+                        ret
+
                         section     .bss
 
 sdl_printbuf            resq        SDL_PRINTBUFSIZE/8
@@ -496,6 +656,22 @@ sdl_printbuf_size       equ         $-sdl_printbuf
 sdl_kbd_input           resq        SDL_KBDINPBUFSIZE/8
 sdl_kbd_input_size      equ         $-sdl_kbd_input
 
+sdl_escseqbuf           resq        SDL_ESCSEQBUFSIZE/8
+sdl_escseqbuf_size      equ         $-sdl_escseqbuf
+
+sdl_numescparams        resb        1
+sdl_escapeparams        resb        10
+                        align       8,resb 1
+
+                        section     .data
+
+sdl_fg_inktable         db          0,1,2,3,4,5,6,7
+sdl_bg_inktable         db          0,1,2,3,4,5,6,7
+sdl_escseqbufpos        db          0
+sdl_escseqflag          db          0
+sdl_escseqtype          db          0
+                        align       8,db 0
+
                         section     .rodata
 
 sdl_worker_moniker      db          'SDL worker thread',0
@@ -503,5 +679,6 @@ sdl_initerr             db          '? SDL_Init failed: %s',10,0
 sdl_thrcrterr           db          '? SDL_CreateThread failed: %s',10,0
 sdl_thrreperr           db          '? SDL worker failed',10,0
 sdl_kbdprinttest        db          '%-*.*s',0
+
 
                         align       8,db 0
