@@ -247,13 +247,18 @@ sdl_outputbs            enter       0,0
 
                         mov         rax,[sdl_textcursor_pos]
                         test        rax,rax
-                        jz          .end
+                        jz          .scroll
 
-                        dec         rax
+.setpos                 dec         rax
                         mov         [sdl_textcursor_pos],rax
 
 .end                    leave
                         ret
+
+.scroll                 call        sdl_scrolldown
+
+                        mov         rax,[sdl_textscreen_width]
+                        jmp         .setpos
 
 sdl_outputlf            enter       0,0
 
@@ -348,6 +353,42 @@ sdl_scrollup            enter       0,0
 
                         leave
                         ret
+
+sdl_scrolldown          enter       0,0
+
+                        ; copy lines from previous line, bottom to top
+                        lea         rax,[sdl_screenbuf]
+                        mov         rdx,[sdl_textscreen_width]
+                        mov         rcx,[sdl_textscreen_size]
+                        lea         rdi,[rax+rcx*2-8]
+                        sub         rcx,rdx
+                        lea         rsi,[rax+rcx*2-8]
+                        shr         rcx,2   ; /4, 1 qword = 4 cells
+                        std
+                        rep         movsq
+                        ; rdi will point to the end of line at the top of
+                        ; the screen
+
+                        ; clear line at the top of the screen
+                        mov         rax,[sdl_text_attribute]
+                        ; rax - 00aa
+                        mov         rdx,rax
+                        shl         rdx,16
+                        or          rax,rdx
+                        ; rax - 00aa 00aa
+                        mov         rdx,rax
+                        shl         rdx,32
+                        or          rax,rdx
+                        ; rax - 00aa 00aa 00aa 00aa
+                        mov         rcx,[sdl_textscreen_width]
+                        shr         rcx,2   ; /4
+                        rep         stosq
+                        ; in memory: aa 00 aa 00 ...
+
+                        cld
+                        leave
+                        ret
+
 
                         ; CLIENT API
                         ; rdi - buffer
