@@ -38,8 +38,8 @@ WCOUT_OVERSHOOT         equ         20  ; room for 4 * 5 bytes of overshoot
                         section     .text
                         global      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         global      ucinsavectx,ucinloadctx
+                        global      ucoutsavectx,ucoutloadctx
                         extern      mbrtowc,wcrtomb
-
 
                         ; rdi - target pointer, 24 bytes
 ucinsavectx             enter       0,0
@@ -55,6 +55,25 @@ ucinloadctx             enter       0,0
                         mov         rsi,rdi
                         lea         rdi,[wcinstate]
                         mov         rcx,wcinctxsize/8
+                        cld
+                        rep         movsq
+                        leave
+                        ret
+
+                        ; rdi - target pointer, 32 bytes
+ucoutsavectx            enter       0,0
+                        lea         rsi,[wcoutstate]
+                        mov         rcx,wcoutctxsize/8
+                        cld
+                        rep         movsq
+                        leave
+                        ret
+
+                        ; rdi - source pointer, 32 bytes
+ucoutloadctx            enter       0,0
+                        mov         rsi,rdi
+                        lea         rdi,[wcoutstate]
+                        mov         rcx,wcoutctxsize/8
                         cld
                         rep         movsq
                         leave

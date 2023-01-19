@@ -20,7 +20,7 @@ When run from the command line, you can specify the "--help" option to see its c
 
 In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines and outputting the tokenized form as well as the detokenized form of the input lines.
 
-In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently just shows a blank screen with a blinking cursor. I'm still working on text input/output in the SDL terminal emulation.
+In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines and outputting the tokenized form as well as the detokenized form of the input lines.
 
 ## Limitations
 

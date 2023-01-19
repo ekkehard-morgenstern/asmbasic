@@ -32,6 +32,7 @@
 SDL_PRINTBUFSIZE        equ         16384
 SDL_KBDINPBUFSIZE       equ         128
 SDL_ESCSEQBUFSIZE       equ         64
+SDL_LINEINPBUFSIZE      equ         1024
 
                         section     .text
 
@@ -54,6 +55,8 @@ SDL_ESCSEQBUFSIZE       equ         64
                         extern      ucinsavectx,ucinloadctx,sdl_waitepoll
                         extern      uclineininit,ucgetcp,sdl_initepoll
                         extern      sdl_kbdinit,sdl_kbdgetbuf
+                        extern      uclineoutinit,ucputcp,ucoutsavectx
+                        extern      ucoutloadctx
 
 sdl_launch              enter       0,0
 
@@ -538,12 +541,21 @@ sdl_scrolldown          enter       0,0
                         ; rdi - buffer
                         ; rsi - bufsiz
                         ; [rbp-0x18] - start cursor position
-sdl_readln              enter       0x20,0
+                        ; [rbp-0x20] - keyboard input size
+                        ; [rbp-0x28] - number of input characters
+                        ; [rbp-0x30] - number of output characters
+                        ; [rbp-0x38] - output code point position
+                        ; [rbp-0x50] .. [rbp-0x39] - Unicode in context backup
+                        ; [rbp-0x70] .. [rbp-0x51] - Unicode out context backup
+sdl_readln              enter       0x70,0
                         mov         [rbp-0x08],rdi
                         mov         [rbp-0x10],rsi
                         mov         rax,[sdl_textcursor_pos]
                         mov         [rbp-0x18],rax
                         mov         byte [rdi],0
+                        xor         rax,rax
+                        mov         [rbp-0x28],rax
+                        mov         [rbp-0x30],rax
 
                         mov         qword [sdl_want_input],1
 
@@ -579,12 +591,128 @@ sdl_readln              enter       0x20,0
                         test        rax,rax
                         jz          .skipregkey
 
-                        lea         rdi,[sdl_kbdprinttest]
-                        mov         rsi,rax
-                        mov         rdx,rax
-                        lea         rcx,[sdl_kbd_input]
-                        xor         al,al
-                        call        sdl_printf
+                        ; save Unicode decoder context
+                        mov         [rbp-0x20],rax
+                        lea         rdi,[rbp-0x50]
+                        call        ucinsavectx
+
+                        ; initialize context
+                        lea         rdi,[sdl_kbd_input]
+                        mov         rsi,[rbp-0x20]
+                        call        uclineininit
+
+                        ; get next code point
+.regnextcp              call        ucgetcp
+
+                        cmp         rax,-1
+                        je          .regend
+
+                        ; skip code points beyond 8 bit range (for now)
+                        cmp         rax,255
+                        ja          .regnextcp
+
+                        ; check for line feed
+                        cmp         al,10
+                        je          .reglf
+
+                        ; check for backspace
+                        cmp         al,8
+                        je          .regbs
+
+                        ; check for nonprintable character
+                        mov         dl,al
+                        and         dl,0x60
+                        jz          .regnextcp
+
+                        ; a printable character, check for room in buffer
+                        mov         rcx,[rbp-0x28]
+                        cmp         rcx,sdl_lineinpbuf_size
+                        jae         .regnextcp
+
+                        ; room in buffer: store 8-bit code point
+                        mov         [sdl_lineinpbuf+rcx],al
+                        inc         rcx
+                        mov         [rbp-0x28],rcx
+
+                        ; now output code point
+                        mov         rdi,rax
+                        call        sdl_outputcp
+
+                        ; resume with next code point
+                        jmp         .regnextcp
+
+                        ; user hit backspace key
+.regbs                  mov         rcx,[rbp-0x28]
+
+                        ; check if backspace was pressed at beginning
+                        test        rcx,rcx
+                        jz          .regnextcp
+
+                        ; no: decrement buffer length
+                        dec         qword [rbp-0x28]
+
+                        ; output BS SPC BS sequence (rubout)
+                        call        sdl_outputbs
+                        mov         rdi,32
+                        call        sdl_outputcp
+                        call        sdl_outputbs
+
+                        ; resume with next code point
+                        jmp         .regnextcp
+
+                        ; user hit return key: finished
+.reglf                  call        sdl_outputlf
+
+                        ; transfer code point buffer into user buffer
+                        ; first, save Unicode encoder context
+                        lea         rdi,[rbp-0x70]
+                        call        ucoutsavectx
+
+                        ; initialize Unicode output buffer
+                        mov         rdi,[rbp-0x08]
+                        mov         rsi,[rbp-0x10]
+                        call        uclineoutinit
+
+                        ; reset code point position
+                        xor         rcx,rcx
+
+                        ; save and check code point position
+.regoutput              mov         [rbp-0x38],rcx
+                        cmp         rcx,[rbp-0x28]
+                        jae         .regoutend
+
+                        ; retrieve and store code point
+                        movzx       rdi,byte [sdl_lineinpbuf+rcx]
+                        call        ucputcp
+                        mov         [rbp-0x30],rax
+
+                        ; proceed with next one
+                        mov         rcx,[rbp-0x38]
+                        inc         rcx
+                        jmp         .regoutput
+
+                        ; store terminating LF and NUL
+.regoutend              mov         rdi,10
+                        call        ucputcp
+                        mov         [rbp-0x30],rax
+
+                        xor         rdi,rdi
+                        call        ucputcp
+
+                        ; restore Unicode encoder context
+                        lea         rdi,[rbp-0x70]
+                        call        ucoutloadctx
+
+                        ; restore Unicode decoder context
+                        lea         rdi,[rbp-0x50]
+                        call        ucinloadctx
+
+                        ; finish
+                        jmp         .gotreturn
+
+                        ; restore Unicode decoder context
+.regend                 lea         rdi,[rbp-0x50]
+                        call        ucinloadctx
 
 .skipregkey:
 
@@ -594,7 +722,7 @@ sdl_readln              enter       0x20,0
 .error:
 .workerquit:
 .gotreturn              mov         qword [sdl_want_input],0
-
+                        mov         rax,[rbp-0x30]
                         leave
                         ret
 
@@ -662,6 +790,9 @@ sdl_escseqbuf_size      equ         $-sdl_escseqbuf
 sdl_numescparams        resb        1
 sdl_escapeparams        resb        10
                         align       8,resb 1
+
+sdl_lineinpbuf          resq        SDL_LINEINPBUFSIZE/8
+sdl_lineinpbuf_size     equ         $-sdl_lineinpbuf
 
                         section     .data
 
