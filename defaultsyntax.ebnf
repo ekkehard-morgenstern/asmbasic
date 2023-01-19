@@ -34,3 +34,25 @@ TOKEN oct-number := '&O' /([0-7]+)?(\.[0-7]+)?/ [oct-exponent] .
 TOKEN bin-number := '&B' /([0-1]+)?(\.[0-1]+)?/ [bin-exponent] .
 
 TOKEN number := hex-number | dec-number | oct-number | bin-number .
+
+TOKEN not-ident-char := /[^"<=>*/+-^,;:)$%&!#(]/ .
+TOKEN sigil          := /[$%&!#]/ .
+TOKEN identifier     := not-ident-char { not-ident-char } [ sigil ] .
+TOKEN func-ident     := identifier '(' .
+-- NOTE that identifiers that are identical to a built-in keyword resolve
+--      as that keyword.
+
+TOKEN string-literal := /"[^"]*"/ .
+
+TOKEN num-func-kw := 'ABS(' | 'ASC(' | 'ATAN(' | 'ATN(' | 'CEIL(' | 'COS(' |
+                     'EXP(' | 'FLOOR(' | 'INT(' | 'LG(' | 'LN(' | 'LOG10(' |
+                     'LOG2(' | 'LOGN(' | 'PEEK(' | 'PEEKB(' | 'PEEKD(' |
+                     'PEEKF(' | 'PEEKL(' | 'PEEKQ(' | 'PEEKW(' | 'SIN(' |
+                     'SQR(' | 'SQRT(' | 'UNI(' .
+
+TOKEN str-func-kw := 'AT$(' | 'BIN$(' | 'DEC$(' | 'HEX$(' | 'HTAB$(' | 'LEFT$('
+                     | 'MID$(' | 'OCT$(' | 'RIGHT$(' | 'STR$(' | 'UNI$(' |
+                     'VTAB$(' .
+
+TOKEN predef-num-var := 'ERL' | 'RND' | 'TI' .
+TOKEN predef-str-var := 'DATE$' | 'DATETIME$' | 'ERR$' | 'TI$' | 'TIME$' .
