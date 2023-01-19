@@ -26,11 +26,17 @@ In default or SDL mode (default, or switched on with the "--sdl" option), the co
 
 Some of the currently defined limits are as follows:
 
-The current maximum line length is 8191 bytes of UTF-8 text.
+The current maximum line length is 8191 bytes of UTF-8 text. However, the current maximum line editing length in the SDL driver is 1023 Unicode code points.
 
 The current maximum length of string constants is 1004 bytes of UTF-8 text.
 
 The current maximum length of identifiers is 1004 bytes of UTF-8 text.
+
+Unicode support is currently limited to 8 bit code points (lowest Unicode bank).
+
+The user-modifiable character set in the SDL driver is currently 256 characters of fixed 8 x 12 pixels.
+
+The SDL driver's text screen is currently fixed to 80 x 25 8-bit character cells with 8-bit attribute information, which consists of 4 bit foreground color and 4 bit background color. The user-modifiable palette is currently fixed to 16 colors. Text color consists of 8 foreground and background inks each, which can be selected from the 16 color palette (mainly for ANSI CSI sequence compatibility).
 
 ## Playing Around
 
