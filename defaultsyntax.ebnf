@@ -35,10 +35,14 @@ TOKEN bin-number := '&B' /([0-1]+)?(\.[0-1]+)?/ [bin-exponent] .
 
 TOKEN number := hex-number | dec-number | oct-number | bin-number .
 
-TOKEN not-ident-char := /[^"<=>*/+-^,;:)$%&!#(]/ .
-TOKEN sigil          := /[$%&!#]/ .
-TOKEN identifier     := not-ident-char { not-ident-char } [ sigil ] .
-TOKEN func-ident     := identifier '(' .
+TOKEN ident-char     := /[^"<=>*/+-^,;:)$%&!#(]/ .
+TOKEN num-sigil      := /[%&!#]/ .
+TOKEN str-sigil      := /[$]/ .
+TOKEN ident-stem     := ident-char { ident-char } .
+TOKEN num-ident      := ident-stem [ num-sigil ] .
+TOKEN str-ident      := ident-stem [ str-sigil ] .
+TOKEN num-func-ident := num-ident '(' .
+TOKEN str-func-ident := str-ident '(' .
 -- NOTE that identifiers that are identical to a built-in keyword resolve
 --      as that keyword.
 
@@ -56,3 +60,131 @@ TOKEN str-func-kw := 'AT$(' | 'BIN$(' | 'DEC$(' | 'HEX$(' | 'HTAB$(' | 'LEFT$('
 
 TOKEN predef-num-var := 'ERL' | 'RND' | 'TI' .
 TOKEN predef-str-var := 'DATE$' | 'DATETIME$' | 'ERR$' | 'TI$' | 'TIME$' .
+
+TOKEN gosub-kw := 'GO' 'SUB' | 'GOSUB' .
+TOKEN goto-kw := 'GO' 'TO' | 'GOTO' .
+TOKEN gosub-or-goto-kw := gosub-kw | go-to .
+TOKEN and-oper := 'AND' | 'NAND' .
+TOKEN or-oper := 'OR' | 'NOR' | 'XOR' | 'XNOR' .
+TOKEN log-oper := and-oper | or-oper .
+TOKEN imp-oper := 'IMP' | 'NIMP' .
+TOKEN eqv-oper := 'EQV' | 'NEQV' .
+TOKEN imp-or-eqv-oper := imp-oper | eqv-oper .
+TOKEN not-oper := 'NOT' .
+TOKEN shift-oper := 'ASL' | 'ASR' | 'SHL' | 'SHR' .
+TOKEN mul-oper := '*' | '**' | '^' .
+TOKEN div-oper := '/' .
+TOKEN mul-or-div-oper := mul-oper | div-oper .
+TOKEN add-oper := '+' .
+TOKEN sub-oper := '-' .
+TOKEN add-or-sub-oper := add-oper | sub-oper .
+TOKEN cmp-oper := '=' | '<>' | '><' | '>=' | '<=' | '<' | '>' .
+TOKEN chan := '#' ( number | num-ident  ) .
+
+TOKEN jump-target := number | num-ident .
+TOKEN loop-variable := num-ident .
+TOKEN loop-or-jump := loop-variable | jump-target .
+
+jump-target-list := jump-target { ',' jump-target } .
+loop-variable-list := loop-variable { ',' loop-variable } .
+chan-list := chan { ',' chan } .
+
+num-array-ident := num-func-ident ')' .
+str-array-ident := str-func-ident ')' .
+
+identifier := num-ident | str-ident | num-array-ident | str-array-ident .
+identifier-list := identifier { ',' identifier } .
+
+num-func-ap := ( num-func-kw | num-func-ident ) expr-list ')' .
+str-func-ap := ( str-func-kw | str-func-ident ) expr-list ')' .
+func-ap     := num-func-ap | str-func-ap .
+
+num-var-ref := num-ident | predef-num-var | num-func-ap .
+str-var-ref := str-ident | predef-str-var | str-func-ap .
+
+num-base-expr  := number | num-var-ref | '(' num-expr ')' .
+num-unary-expr := [ not-oper | add-oper | sub-oper ] num-base-expr .
+num-mul-expr   := num-unary-expr { mul-or-div-oper num-unary-expr } .
+num-add-expr   := num-mul-expr { add-or-sub-oper num-mul-expr } .
+num-shf-expr   := num-add-expr [ shift-oper num-add-expr ] .
+pure-num-expr  := num-shf-expr .
+num-log-expr   := pure-num-expr { log-oper pure-num-expr } .
+num-expr       := num-log-expr .
+-- NOTE a slight complication here: If a conditional expression (see below)
+--      contains a logical expression, it must be in parenthesis.
+--      Also, conditional expressions are only allowed in IF statements.
+num-expr-list  := num-expr { ',' num-expr } .
+
+str-base-expr := string-literal | str-var-ref .
+str-add-expr  := str-base-expr { add-oper str-base-expr } .
+str-expr      := str-add-expr .
+str-expr-list := str-expr { ',' str-expr } .
+
+num-cmp-expr := pure-num-expr cmp-oper pure-num-expr .
+str-cmp-expr := str-expr cmp-oper str-expr .
+cmp-expr     := num-cmp-expr | str-cmp-expr .
+imp-expr     := cmp-expr [ imp-or-eqv-oper cmp-expr ] .
+and-expr     := imp-expr { and-oper imp-expr } .
+or-expr      := and-expr { or-oper and-expr } .
+cond-expr    := or-expr .
+
+expr        := num-expr | str-expr .
+expr-list   := expr { ',' expr } .
+
+-- program/immediate mode statements:
+
+break-stmt := 'BRK' .
+call-stmt := 'CALL' func-ap .
+catalog-stmt := 'CATALOG' [ str-expr ] .
+def-char-stmt := 'DEF' 'CHAR' num-expr-list .
+clear-stmt := 'CLEAR' .
+close-stmt := 'CLOSE' [ chan-list ] .
+cls-stmt := 'CLS' [ num-expr ] .
+color-stmt := 'COLOR' num-expr [ ',' num-expr ] .
+delete-stmt := 'DELETE' number [ '-' number ] .
+
+dimension := num-expr | 'DYNAMIC' | 'ASSOC' .
+dimensions := dimension { ',' dimension } .
+num-dim-expr := num-func-ident dimensions ')' .
+str-dim-expr := str-func-ident dimensions ')' .
+dim-expr := num-dim-expr | str-dim-expr .
+dim-list := dim-expr { ',' dim-expr } .
+dim-stmt := 'DIM' dim-list .
+
+any-mode-stmt := break-stmt | call-stmt | catalog-stmt | def-char-stmt |
+                 clear-stmt | close-stmt| cls-stmt | color-stmt | dim-stmt .
+
+-- program mode ONLY statements:
+
+after-or-every-stmt := ( 'AFTER' | 'EVERY' ) num-expr gosub-or-goto-kw
+                       jump-target .
+again-stmt := 'AGAIN' [ loop-or-jump ] .
+chain-stmt := 'CHAIN' [ 'MERGE' ] str-expr .
+
+data-item := number | str-literal | ident-stem .
+data-item-list := data-item { ',' data-item } .
+data-stmt := 'DATA' data-item-list .
+
+num-fn-decl := num-func-ident identifier-list ')' '=' num-expr .
+str-fn-decl := str-func-ident identifier-list ')' '=' str-expr .
+fn-decl     := num-fn-decl | str-fn-decl .
+def-fn-stmt := 'DEF' 'FN' fn-decl .
+
+program-only-stmt := after-or-every-stmt | again-stmt | chain-stmt |
+    data-stmt | def-fn-stmt .
+
+-- direct mode ONLY statements:
+
+auto-stmt := 'AUTO' [ num-expr [ ',' num-expr ] ] .
+cont-stmt := 'CONT' [ jump-target ] .
+
+direct-only-stmt := auto-stmt | cont-stmt .
+
+-- combined modes
+
+program-stmt := program-only-stmt | any-mode-stmt .
+program-line := number [ program-stmt { ':' program-stmt } ] .
+
+direct-stmt := direct-only-stmt | any-mode-stmt .
+
+direct-line := direct-stmt { ':' direct-stmt } | program-line .
