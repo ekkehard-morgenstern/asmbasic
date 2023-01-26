@@ -1,0 +1,3 @@
+[submodule "ebnfcomp"]
+	path = ebnfcomp
+	url = https://github.com/ekkehard-morgenstern/ebnfcomp.git

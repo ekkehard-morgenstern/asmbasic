@@ -34,11 +34,11 @@ endif
 .nasm.o:
 	nasm -f elf64 $(ASMOPT) -l $*.lst -o $@ $<
 
-all:	asmbasic
+all:	ebnfcomp/ebnfcomp asmbasic
 	echo ok >all
 
 clean:
-	rm asmbasic *.o *.lst
+	rm asmbasic *.o *.lst ebnfcomp/ebnfcomp
 
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
@@ -48,6 +48,9 @@ MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 
 asmbasic: $(MODULES)
 	gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lrt -lSDL2
+
+ebnfcomp/ebnfcomp:
+	cd ebnfcomp && make && cd ..
 
 main.o: 	main.nasm
 
