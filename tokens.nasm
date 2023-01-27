@@ -682,8 +682,17 @@ tok_main                enter       0x10,0
                         call        tok_putb
                         jmp         .tokloop
 
+.notpower               cmp         rax,'#'
+                        jne         .notlattice
+
+                        mov         rdi,0x02
+                        call        tok_putb
+                        mov         rdi,0x11    ; '#'
+                        call        tok_putb
+                        jmp         .tokloop
+
                         ; everything else is regarded as an identifier
-.notpower               mov         rdi,rax
+.notlattice             mov         rdi,rax
                         call        tok_ident
                         jmp         .tokloop
 
@@ -766,10 +775,11 @@ tok_strlit              enter       0x10,0
                         ;   [rbp-0x10]  RDI backup (initial code point)
                         ;   [rbp-0x18]  RBX backup
 
-tok_ident               enter       0x20,0
+tok_ident               enter       0x30,0
                         mov         [rbp-0x10],rdi
                         mov         [rbp-0x18],rbx
                         mov         [rbp-0x20],r12
+                        mov         byte [rbp-0x30],0 ; type field
 
                         lea         rdi,[identbuf]
                         mov         rsi,identbufsize
@@ -822,7 +832,7 @@ tok_ident               enter       0x20,0
                         ; a sigil character terminates the identifier
                         ; (inclusively)
 .continue               cmp         rax,'$'
-                        je          .sigil
+                        je          .strsigil
                         cmp         rax,'%'
                         je          .sigil
                         cmp         rax,'&'
@@ -836,6 +846,9 @@ tok_ident               enter       0x20,0
 
                         mov         rdi,rax
                         jmp         .storechar
+
+                        ; we have a string sigil '$': set flag in type field
+.strsigil               or          byte [rbp-0x30],1
 
                         ; we have a sigil: store the character
 .sigil                  mov         rdi,rax
@@ -855,6 +868,7 @@ tok_ident               enter       0x20,0
 .lparen                 mov         rdi,rax
                         call        ucputcp
                         mov         [rbp-0x08],rax
+                        or          byte [rbp-0x30],2 ; func flag in type field
                         jmp         .endread
 
                         ; not a left parenthesis: put codepoint back
@@ -898,9 +912,11 @@ tok_ident               enter       0x20,0
                         jmp         .storeend
 
                         ; identifiers are encoded as 0xFE followed by
-                        ; a two-byte length and then the actual name
-                        ; (NOT NUL terminated)
+                        ; a type field, a two-byte length and then the
+                        ; actual name (NOT NUL terminated)
 .notfound               mov         rdi,0xfe
+                        call        tok_putb
+                        movzx       rdi,byte [rbp-0x30]
                         call        tok_putb
                         movzx       rdi,byte [rbp-0x07]
                         call        tok_putb
@@ -1156,10 +1172,10 @@ detokenize              enter       0x40,0
                         jne         .notident
 
                         ; get length
-                        mov         ah,[rbx+1]
-                        mov         al,[rbx+2]
+                        mov         ah,[rbx+2]
+                        mov         al,[rbx+3]
                         movzx       r13,ax
-                        add         rbx,3
+                        add         rbx,4
                         sub         r12,3
 
                         ; output single space as separator
@@ -1233,6 +1249,8 @@ detokenize              enter       0x40,0
                         je          .power
                         cmp         al,0x10
                         je          .ampersand
+                        cmp         al,0x11
+                        je          .lattice
 
                         ; unknown
                         jmp         .detokend
@@ -1302,6 +1320,10 @@ detokenize              enter       0x40,0
                         jmp         .detokloop
 
 .ampersand              mov         rdi,'&'
+                        call        detok_putch
+                        jmp         .detokloop
+
+.lattice                mov         rdi,'#'
                         call        detok_putch
                         jmp         .detokloop
 
@@ -1429,111 +1451,113 @@ tokentbl                db          4,2,"ABS(",0x03,0x00
                         db          6,2,"HTAB$(",0x03,0x42
                         db          2,2,"IF",0x03,0x43
                         db          3,2,"IMP",0x03,0x44
-                        db          3,2,"INK",0x03,0x45
-                        db          5,2,"INPUT",0x03,0x46
-                        db          4,2,"INT(",0x03,0x47
-                        db          7,2,"ITERATE",0x03,0x48
-                        db          5,2,"LABEL",0x03,0x49
-                        db          5,2,"LEAVE",0x03,0x4a
-                        db          6,2,"LEFT$(",0x03,0x4b
-                        db          3,2,"LET",0x03,0x4c
-                        db          3,2,"LG(",0x03,0x4d
-                        db          4,2,"LINE",0x03,0x4e
-                        db          4,2,"LIST",0x03,0x4f
-                        db          3,2,"LN(",0x03,0x50
-                        db          4,2,"LOAD",0x03,0x51
-                        db          6,2,"LOCATE",0x03,0x52
-                        db          6,2,"LOG10(",0x03,0x53
-                        db          5,2,"LOG2(",0x03,0x54
-                        db          5,2,"LOGN(",0x03,0x55
-                        db          4,2,"LOOP",0x03,0x56
-                        db          5,2,"MERGE",0x03,0x57
-                        db          5,2,"MID$(",0x03,0x58
-                        db          3,2,"MOD",0x03,0x59
-                        db          4,2,"NAND",0x03,0x5a
-                        db          4,2,"NEQV",0x03,0x5b
-                        db          3,2,"NEW",0x03,0x5c
-                        db          4,2,"NEXT",0x03,0x5d
-                        db          4,2,"NIMP",0x03,0x5e
-                        db          3,2,"NOR",0x03,0x5f
-                        db          3,2,"NOT",0x03,0x60
-                        db          5,2,"OCT$(",0x03,0x61
-                        db          3,2,"OFF",0x03,0x62
-                        db          3,2,"OLD",0x03,0x63
-                        db          2,2,"ON",0x03,0x64
-                        db          4,2,"OPEN",0x03,0x65
-                        db          6,2,"OPTION",0x03,0x66
-                        db          2,2,"OR",0x03,0x67
-                        db          6,2,"OUTPUT",0x03,0x68
-                        db          7,2,"PALETTE",0x03,0x69
-                        db          5,2,"PEEK(",0x03,0x6a
-                        db          6,2,"PEEKB(",0x03,0x6b
-                        db          6,2,"PEEKD(",0x03,0x6c
-                        db          6,2,"PEEKF(",0x03,0x6d
-                        db          6,2,"PEEKL(",0x03,0x6e
-                        db          6,2,"PEEKQ(",0x03,0x6f
-                        db          6,2,"PEEKW(",0x03,0x70
-                        db          4,2,"POKE",0x03,0x71
-                        db          5,2,"POKEB",0x03,0x72
-                        db          5,2,"POKED",0x03,0x73
-                        db          5,2,"POKEF",0x03,0x74
-                        db          5,2,"POKEL",0x03,0x75
-                        db          5,2,"POKEQ",0x03,0x76
-                        db          5,2,"POKEW",0x03,0x77
-                        db          3,2,"POP",0x03,0x78
-                        db          5,2,"PRINT",0x03,0x79
-                        db          4,2,"PROC",0x03,0x7a
-                        db          9,2,"PROCEDURE",0x03,0x7b
-                        db          4,2,"PUSH",0x03,0x7c
-                        db          3,2,"PUT",0x03,0x7d
-                        db          9,2,"RANDOMIZE",0x03,0x7e
-                        db          6,2,"RECORD",0x03,0x7f
-                        db          3,2,"REL",0x03,0x80
-                        db          6,2,"RENAME",0x03,0x81
-                        db          5,2,"RENUM",0x03,0x82
-                        db          8,2,"RENUMBER",0x03,0x83
-                        db          6,2,"REPEAT",0x03,0x84
-                        db          7,2,"RESTORE",0x03,0x85
-                        db          6,2,"RESUME",0x03,0x86
-                        db          6,2,"RETURN",0x03,0x87
-                        db          7,2,"RIGHT$(",0x03,0x88
-                        db          3,2,"RND",0x03,0x89
-                        db          3,2,"ROL",0x03,0x8a
-                        db          3,2,"ROR",0x03,0x8b
-                        db          3,2,"RUN",0x03,0x8c
-                        db          6,2,"SAFETY",0x03,0x8d
-                        db          4,2,"SAVE",0x03,0x8e
-                        db          4,2,"SEEK",0x03,0x8f
-                        db          3,2,"SHL",0x03,0x90
-                        db          3,2,"SHR",0x03,0x91
-                        db          4,2,"SIN(",0x03,0x92
-                        db          4,2,"SQR(",0x03,0x93
-                        db          5,2,"SQRT(",0x03,0x94
-                        db          4,2,"STOP",0x03,0x95
-                        db          5,2,"STR$(",0x03,0x96
-                        db          3,2,"SUB",0x03,0x97
-                        db          3,2,"SYS",0x03,0x98
-                        db          2,2,"TI",0x03,0x99
-                        db          3,2,"TI$",0x03,0x9a
-                        db          5,2,"TIME$",0x03,0x9b
-                        db          5,2,"TIMER",0x03,0x9c
-                        db          2,2,"TO",0x03,0x9d
-                        db          5,2,"TRACE",0x03,0x9e
-                        db          4,2,"TYPE",0x03,0x9f
-                        db          4,2,"UNI(",0x03,0xa0
-                        db          5,2,"UNI$(",0x03,0xa1
-                        db          6,2,"UNLESS",0x03,0xa2
-                        db          5,2,"UNTIL",0x03,0xa3
-                        db          5,2,"USING",0x03,0xa4
-                        db          4,2,"VAL(",0x03,0xa5
-                        db          4,2,"VTAB",0x03,0xa6
-                        db          5,2,"VTAB(",0x03,0xa7
-                        db          6,2,"VTAB$(",0x03,0xa8
-                        db          4,2,"WEND",0x03,0xa9
-                        db          5,2,"WHILE",0x03,0xaa
-                        db          4,2,"XNOR",0x03,0xab
-                        db          3,2,"XOR",0x03,0xac
-                        db          5,2,"YIELD",0x03,0xad
+                        db          2,2,"IN",0x03,0x45
+                        db          3,2,"INK",0x03,0x46
+                        db          5,2,"INPUT",0x03,0x47
+                        db          4,2,"INT(",0x03,0x48
+                        db          7,2,"ITERATE",0x03,0x49
+                        db          5,2,"LABEL",0x03,0x4a
+                        db          5,2,"LEAVE",0x03,0x4b
+                        db          6,2,"LEFT$(",0x03,0x4c
+                        db          3,2,"LET",0x03,0x4d
+                        db          3,2,"LG(",0x03,0x4e
+                        db          4,2,"LINE",0x03,0x4f
+                        db          4,2,"LIST",0x03,0x50
+                        db          3,2,"LN(",0x03,0x51
+                        db          4,2,"LOAD",0x03,0x52
+                        db          6,2,"LOCATE",0x03,0x53
+                        db          6,2,"LOG10(",0x03,0x54
+                        db          5,2,"LOG2(",0x03,0x55
+                        db          5,2,"LOGN(",0x03,0x56
+                        db          4,2,"LOOP",0x03,0x57
+                        db          5,2,"MERGE",0x03,0x58
+                        db          5,2,"MID$(",0x03,0x59
+                        db          3,2,"MOD",0x03,0x5a
+                        db          4,2,"NAND",0x03,0x5b
+                        db          4,2,"NEQV",0x03,0x5c
+                        db          3,2,"NEW",0x03,0x5d
+                        db          4,2,"NEXT",0x03,0x5e
+                        db          4,2,"NIMP",0x03,0x5f
+                        db          3,2,"NOR",0x03,0x60
+                        db          3,2,"NOT",0x03,0x61
+                        db          5,2,"OCT$(",0x03,0x62
+                        db          3,2,"OFF",0x03,0x63
+                        db          3,2,"OLD",0x03,0x64
+                        db          2,2,"ON",0x03,0x65
+                        db          4,2,"OPEN",0x03,0x66
+                        db          6,2,"OPTION",0x03,0x67
+                        db          2,2,"OR",0x03,0x68
+                        db          6,2,"OUTPUT",0x03,0x69
+                        db          7,2,"PALETTE",0x03,0x6a
+                        db          5,2,"PEEK(",0x03,0x6b
+                        db          6,2,"PEEKB(",0x03,0x6c
+                        db          6,2,"PEEKD(",0x03,0x6d
+                        db          6,2,"PEEKF(",0x03,0x6e
+                        db          6,2,"PEEKL(",0x03,0x6f
+                        db          6,2,"PEEKQ(",0x03,0x70
+                        db          6,2,"PEEKW(",0x03,0x71
+                        db          4,2,"POKE",0x03,0x72
+                        db          5,2,"POKEB",0x03,0x73
+                        db          5,2,"POKED",0x03,0x74
+                        db          5,2,"POKEF",0x03,0x75
+                        db          5,2,"POKEL",0x03,0x76
+                        db          5,2,"POKEQ",0x03,0x77
+                        db          5,2,"POKEW",0x03,0x78
+                        db          3,2,"POP",0x03,0x79
+                        db          5,2,"PRINT",0x03,0x7a
+                        db          4,2,"PROC",0x03,0x7b
+                        db          9,2,"PROCEDURE",0x03,0x7c
+                        db          4,2,"PUSH",0x03,0x7d
+                        db          3,2,"PUT",0x03,0x7e
+                        db          9,2,"RANDOMIZE",0x03,0x7f
+                        db          6,2,"RECORD",0x03,0x80
+                        db          3,2,"REL",0x03,0x81
+                        db          6,2,"RENAME",0x03,0x82
+                        db          5,2,"RENUM",0x03,0x83
+                        db          8,2,"RENUMBER",0x03,0x84
+                        db          6,2,"REPEAT",0x03,0x85
+                        db          7,2,"RESTORE",0x03,0x86
+                        db          6,2,"RESUME",0x03,0x87
+                        db          6,2,"RETURN",0x03,0x88
+                        db          7,2,"RIGHT$(",0x03,0x89
+                        db          3,2,"RND",0x03,0x8a
+                        db          3,2,"ROL",0x03,0x8b
+                        db          3,2,"ROR",0x03,0x8c
+                        db          3,2,"RUN",0x03,0x8d
+                        db          6,2,"SAFETY",0x03,0x8e
+                        db          4,2,"SAVE",0x03,0x8f
+                        db          4,2,"SEEK",0x03,0x90
+                        db          3,2,"SHL",0x03,0x91
+                        db          3,2,"SHR",0x03,0x92
+                        db          4,2,"SIN(",0x03,0x93
+                        db          4,2,"SQR(",0x03,0x94
+                        db          5,2,"SQRT(",0x03,0x95
+                        db          4,2,"STEP",0x03,0x96
+                        db          4,2,"STOP",0x03,0x97
+                        db          5,2,"STR$(",0x03,0x98
+                        db          3,2,"SUB",0x03,0x99
+                        db          3,2,"SYS",0x03,0x9a
+                        db          2,2,"TI",0x03,0x9b
+                        db          3,2,"TI$",0x03,0x9c
+                        db          5,2,"TIME$",0x03,0x9d
+                        db          5,2,"TIMER",0x03,0x9e
+                        db          2,2,"TO",0x03,0x9f
+                        db          5,2,"TRACE",0x03,0xa0
+                        db          4,2,"TYPE",0x03,0xa1
+                        db          4,2,"UNI(",0x03,0xa2
+                        db          5,2,"UNI$(",0x03,0xa3
+                        db          6,2,"UNLESS",0x03,0xa4
+                        db          5,2,"UNTIL",0x03,0xa5
+                        db          5,2,"USING",0x03,0xa6
+                        db          4,2,"VAL(",0x03,0xa7
+                        db          4,2,"VTAB",0x03,0xa8
+                        db          5,2,"VTAB(",0x03,0xa9
+                        db          6,2,"VTAB$(",0x03,0xaa
+                        db          4,2,"WEND",0x03,0xab
+                        db          5,2,"WHILE",0x03,0xac
+                        db          4,2,"XNOR",0x03,0xad
+                        db          3,2,"XOR",0x03,0xae
+                        db          5,2,"YIELD",0x03,0xaf
 tokentbl_size           equ         $-tokentbl
 tokentbl_name           db          7,"default"
 

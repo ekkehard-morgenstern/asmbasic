@@ -61,9 +61,9 @@ TOKEN str-func-kw := 'AT$(' | 'BIN$(' | 'DEC$(' | 'HEX$(' | 'HTAB$(' | 'LEFT$('
 TOKEN predef-num-var := 'ERL' | 'RND' | 'TI' .
 TOKEN predef-str-var := 'DATE$' | 'DATETIME$' | 'ERR$' | 'TI$' | 'TIME$' .
 
-TOKEN gosub-kw := 'GO' 'SUB' | 'GOSUB' .
-TOKEN goto-kw := 'GO' 'TO' | 'GOTO' .
-TOKEN gosub-or-goto-kw := gosub-kw | go-to .
+TOKEN gosub := 'GO' 'SUB' | 'GOSUB' .
+TOKEN goto := 'GO' 'TO' | 'GOTO' .
+TOKEN gosub-or-goto := gosub | goto .
 TOKEN and-oper := 'AND' | 'NAND' .
 TOKEN or-oper := 'OR' | 'NOR' | 'XOR' | 'XNOR' .
 TOKEN log-oper := and-oper | or-oper .
@@ -85,12 +85,13 @@ TOKEN jump-target := number | num-ident .
 TOKEN loop-variable := num-ident .
 TOKEN loop-or-jump := loop-variable | jump-target .
 
-jump-target-list := jump-target { ',' jump-target } .
+-- jump-target-list := jump-target { ',' jump-target } .
 loop-variable-list := loop-variable { ',' loop-variable } .
 chan-list := chan { ',' chan } .
 
 num-array-ident := num-func-ident ')' .
 str-array-ident := str-func-ident ')' .
+array-ident := num-array-ident | str-array-ident .
 
 identifier := num-ident | str-ident | num-array-ident | str-array-ident .
 identifier-list := identifier { ',' identifier } .
@@ -118,7 +119,7 @@ num-expr-list  := num-expr { ',' num-expr } .
 str-base-expr := string-literal | str-var-ref .
 str-add-expr  := str-base-expr { add-oper str-base-expr } .
 str-expr      := str-add-expr .
-str-expr-list := str-expr { ',' str-expr } .
+-- str-expr-list := str-expr { ',' str-expr } .
 
 num-cmp-expr := pure-num-expr cmp-oper pure-num-expr .
 str-cmp-expr := str-expr cmp-oper str-expr .
@@ -135,7 +136,7 @@ expr-list   := expr { ',' expr } .
 
 break-stmt := 'BRK' .
 call-stmt := 'CALL' func-ap .
-catalog-stmt := 'CATALOG' [ str-expr ] .
+catalog-stmt := ( 'CATALOG' | 'FILES' ) [ str-expr ] .
 def-char-stmt := 'DEF' 'CHAR' num-expr-list .
 clear-stmt := 'CLEAR' .
 close-stmt := 'CLOSE' [ chan-list ] .
@@ -144,24 +145,40 @@ color-stmt := 'COLOR' num-expr [ ',' num-expr ] .
 delete-stmt := 'DELETE' number [ '-' number ] .
 
 dimension := num-expr | 'DYNAMIC' | 'ASSOC' .
-dimensions := dimension { ',' dimension } .
-num-dim-expr := num-func-ident dimensions ')' .
-str-dim-expr := str-func-ident dimensions ')' .
+dimension-list := dimension { ',' dimension } .
+num-dim-expr := num-func-ident dimension-list ')' .
+str-dim-expr := str-func-ident dimension-list ')' .
 dim-expr := num-dim-expr | str-dim-expr .
 dim-list := dim-expr { ',' dim-expr } .
 dim-stmt := 'DIM' dim-list .
 
+do-stmt := 'DO' [ ( 'WHILE' | 'UNTIL' ) cond-expr ] .
+
+for-stmt := 'FOR' loop-variable '=' num-expr ( 'TO' | 'DOWNTO' ) num-expr
+                [ 'STEP' num-expr ] |
+            ( 'FOR' 'EACH' | 'FOREACH' ) loop-variable [ ',' loop-variable ]
+                 'IN' array-ident |
+            ( 'FOR' 'EVER' | 'FOREVER' ) |
+            'REPEAT' |
+            ( 'WHILE' | 'UNTIL' ) cond-expr .
+
+loop-stmt := 'LOOP' [ ( 'WHILE' | 'UNTIL' ) cond-expr ] |
+             ( 'WHILE' | 'UNTIL' ) cond-expr |
+             'NEXT' loop-variable-list |
+             'WEND' .
+
 any-mode-stmt := break-stmt | call-stmt | catalog-stmt | def-char-stmt |
-                 clear-stmt | close-stmt| cls-stmt | color-stmt | dim-stmt .
+                 clear-stmt | close-stmt | cls-stmt | color-stmt |
+                 delete-stmt | dim-stmt | do-stmt | for-stmt | loop-stmt .
 
 -- program mode ONLY statements:
 
-after-or-every-stmt := ( 'AFTER' | 'EVERY' ) num-expr gosub-or-goto-kw
+after-or-every-stmt := ( 'AFTER' | 'EVERY' ) num-expr gosub-or-goto
                        jump-target .
-again-stmt := 'AGAIN' [ loop-or-jump ] .
+again-or-exit-stmt := ( 'AGAIN' | 'EXIT' ) [ loop-or-jump ] .
 chain-stmt := 'CHAIN' [ 'MERGE' ] str-expr .
 
-data-item := number | str-literal | ident-stem .
+data-item := number | string-literal .
 data-item-list := data-item { ',' data-item } .
 data-stmt := 'DATA' data-item-list .
 
@@ -170,20 +187,30 @@ str-fn-decl := str-func-ident identifier-list ')' '=' str-expr .
 fn-decl     := num-fn-decl | str-fn-decl .
 def-fn-stmt := 'DEF' 'FN' fn-decl .
 
-program-only-stmt := after-or-every-stmt | again-stmt | chain-stmt |
-    data-stmt | def-fn-stmt .
+num-func-decl := num-func-ident identifier-list ')' .
+str-func-decl := str-func-ident identifier-list ')' .
+func-decl     := num-func-decl | str-func-decl .
+
+func-stmt := ( 'FUNC' | 'FUNCTION' ) func-decl .
+
+
+program-only-stmt := after-or-every-stmt | again-or-exit-stmt | chain-stmt |
+    data-stmt | def-fn-stmt | func-stmt .
 
 -- direct mode ONLY statements:
 
-auto-stmt := 'AUTO' [ num-expr [ ',' num-expr ] ] .
+auto-stmt := 'AUTO' [ number [ ',' number ] ] .
 cont-stmt := 'CONT' [ jump-target ] .
+edit-stmt := 'EDIT' dec-number .
 
-direct-only-stmt := auto-stmt | cont-stmt .
+
+
+direct-only-stmt := auto-stmt | cont-stmt | edit-stmt .
 
 -- combined modes
 
 program-stmt := program-only-stmt | any-mode-stmt .
-program-line := number [ program-stmt { ':' program-stmt } ] .
+program-line := dec-number [ program-stmt { ':' program-stmt } ] .
 
 direct-stmt := direct-only-stmt | any-mode-stmt .
 
