@@ -32,7 +32,7 @@ LBUF_SIZE               equ         8192
 
                         global      main
                         extern      init_locale,chkcputype
-                        extern      init_tokenizer
+                        extern      init_tokenizer,initparsetree
                         extern      dump_tokenmap
                         extern      pb_initstdio,pb_initsdl,pb_readln,strlen
                         extern      tokenize,detokenize,tok_dumplinebuf
@@ -46,6 +46,7 @@ main                    enter       0,0
                         call        init_locale
                         call        getargs
                         call        chkcputype
+                        call        initparsetree
 
                         cmp         qword [consolemode],0
                         je          .defaultconsole

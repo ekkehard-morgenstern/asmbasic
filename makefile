@@ -42,7 +42,7 @@ clean:
 
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
-		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o
+		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o parsetree.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -91,3 +91,5 @@ toknum.o: 	toknum.nasm
 8x12font.o: 8x12font.nasm
 
 mainsyntax.o: mainsyntax.nasm mainsyntax.inc
+
+parsetree.o: parsetree.nasm parsetree.inc mainsyntax.inc
