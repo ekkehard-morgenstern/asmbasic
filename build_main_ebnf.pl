@@ -29,7 +29,7 @@ my %operdefs = (
     '<>' => 'TOKEN ne-op := $0202 . -- <> ><',
     '><' => 'TOKEN ne-op := $0202 . -- <> ><',
     '>' => 'TOKEN gt-op := $0203 . -- >',
-    '>=' => 'TOKEN ge-op := $0204 . -- >',
+    '>=' => 'TOKEN ge-op := $0204 . -- >=',
     '=' => 'TOKEN eq-op := $0205 . -- =',
     '(' => 'TOKEN lparen := $0206 . -- (',
     ')' => 'TOKEN rparen := $0207 . -- )',
@@ -42,8 +42,8 @@ my %operdefs = (
     '*' => 'TOKEN times := $020d . -- *',
     '/' => 'TOKEN slash := $020e . -- /',
     '^' => 'TOKEN power := $020f . -- ** ^',
-    '&' => 'TOKEN power := $0210 . -- &',
-    '#' => 'TOKEN power := $0211 . -- #',
+    '&' => 'TOKEN ampersand := $0210 . -- &',
+    '#' => 'TOKEN lattice := $0211 . -- #',
 );
 
 my %replacedefs = (
@@ -64,9 +64,17 @@ my %tokprods;
 my %defs;
 my %deford;
 my $ord = 1;
-for my $oper ( keys %operdefs ) {
+for my $oper ( sort keys %operdefs ) {
     my $prod = $operdefs{$oper};
     $tokprods{$oper} = $prod;
+    if ( $prod =~ /\s+([a-z0-9-]+)/ ) {
+        $name = $1;
+        unless ( defined $defs{$name} ) {
+            $defs{$name} = $prod;
+            $ordn = sprintf( "%04d", $ord++ );
+            $deford{$ordn} = $name;
+        }
+    }
 }
 while ( <FILE> ) {
     chomp;
@@ -143,7 +151,7 @@ for my $name ( keys %defs ) {
         push @idents, $1;
     }
     for ( @idents ) {
-        next if $_ eq '--';
+        next if $_ eq '--' or $_ eq '-';
         unless ( defined $defs{$_} ) {
             print STDERR "undefined production $_\n";
             print STDERR "line was: $line\n";
