@@ -59,8 +59,16 @@ main                    enter       0,0
 .defaultconsole         call        pb_initsdl
 
 .afterinitconsole       call        init_tokenizer
+
+                        cmp         qword [testtok],0
+                        je          .nottesttok
+
                         call        tokenizer_test
-                        xor         rax,rax
+                        jmp         .end
+
+.nottesttok             call        main_loop
+
+.end                    xor         rax,rax
                         leave
                         ret
 
@@ -76,6 +84,7 @@ getargs                 enter       0x20,0
                         mov         [helpmode],rax
                         mov         [consolemode],rax
                         mov         [filename],rax
+                        mov         [testtok],rax
 
 .argloop                test        r12,r12
                         jz          .endargs
@@ -181,7 +190,15 @@ getargs                 enter       0x20,0
                         mov         qword [consolemode],2
                         jmp         .argloop
 
-.notcurses              mov         rdi,[stderr]
+.notcurses              mov         rdi,r14
+                        lea         rsi,[testtokoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .nottesttok
+                        mov         qword [testtok],1
+                        jmp         .argloop
+
+.nottesttok             mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -244,7 +261,39 @@ tokenizer_test          enter       0,0
 .end                    leave
                         ret
 
+main_loop               enter       0,0
+                        lea         rdi,[greeting]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+.readyloop              lea         rdi,[readyprompt]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+.lineloop               call        getline
+                        test        rax,rax
+                        jz          .end
+                        lea         rdi,[lbuf]
+                        call        strlen
+                        lea         rdi,[lbuf]
+                        cmp         byte [rdi+rax-1],0x0a
+                        jne         .nolf
+                        dec         rax
+                        mov         byte [rdi+rax],0
+.nolf                   test        rax,rax
+                        jz          .end
+                        lea         rdi,[lbuf]
+                        mov         rsi,rax
+                        call        tokenize
+
+
+                        jmp         .lineloop
+.end                    leave
+                        ret
+
+
                         section     .bss
+                        global      testtok
 
 lbuf                    resq        LBUF_SIZE/8
 lbuf_size               equ         $-lbuf
@@ -254,6 +303,7 @@ argv                    resq        1
 helpmode                resq        1
 consolemode             resq        1
 filename                resq        1
+testtok                 resq        1
 
                         section     .rodata
 
@@ -265,9 +315,14 @@ stdiooption             db          'stdio',0
 soption                 db          's',0
 cursesoption            db          'curses',0
 coption                 db          'c',0
+testtokoption           db          'testtok',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
+
+greeting                db          'AsmBASIC v0.0.0',10,10,0
+readyprompt             db          'Ready.',10,0
+
 tokenizertest           db          'AsmBASIC color test',10
                         db          'background colors 0-7: '
                         db          27,'[40m',' '
@@ -299,5 +354,6 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          '  --stdio -s           standard I/O',10
                         db          '  --curses -c          ncurses (not impl)'
                         db          10
+                        db          '  --testtok            test tokenizer',10
                         db          0
                         align       8,db 0

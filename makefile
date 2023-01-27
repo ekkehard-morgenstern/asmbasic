@@ -42,7 +42,8 @@ clean:
 
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
-		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o parsetree.o
+		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o parsetree.o \
+		parsenodename.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -54,6 +55,9 @@ ebnfcomp/ebnfcomp:
 
 mainsyntax.nasm: main.ebnf
 	ebnfcomp/ebnfcomp --asm mainsyntax <main.ebnf
+
+parsenodename.nasm: mainsyntax.inc
+	./extract_nodetext.pl >parsenodename.nasm
 
 main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
 	./build_main_ebnf.pl
@@ -93,3 +97,5 @@ toknum.o: 	toknum.nasm
 mainsyntax.o: mainsyntax.nasm mainsyntax.inc
 
 parsetree.o: parsetree.nasm parsetree.inc mainsyntax.inc
+
+parsnodename.o: parsenodename.nasm

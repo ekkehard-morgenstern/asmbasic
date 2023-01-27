@@ -84,7 +84,7 @@ TKM_HASHSIZE            equ         1000
                         global      init_tokenizer,dump_tokenmap,tokenize
                         global      tok_getch,tok_putb,tok_putq,detok_putch
                         global      tok_dumplinebuf,detokenize
-                        extern      xalloc,pb_putfmt
+                        extern      xalloc,pb_putfmt,testtok
                         extern      uclineininit,ucgetcp,uclineoutinit,ucputcp
                         extern      tok_rdamp,tok_rdnum, detok_wrnum
                         extern      wcchar,iswspace,iswlower,towupper
@@ -302,14 +302,25 @@ dump_tokenmap           enter       0x20,0
                         ; rsi - size of text, in bytes
                         ;
 tokenize                enter       0,0
+
                         ; call preparation code
                         call        tok_prepare
+
+                        cmp         qword [testtok],0
+                        je          .skipdump
+
                         call        tok_dumplinebuf
-                        lea         rdi,[linebuf]
+
+.skipdump               lea         rdi,[linebuf]
                         mov         rsi,[linebuflen]
                         call        tok_main
+
+                        cmp         qword [testtok],0
+                        je          .skipdump2
+
                         call        tok_dumptokbuf
-                        leave
+
+.skipdump2              leave
                         ret
 
 ; ---------------------------------------------------------------------------
