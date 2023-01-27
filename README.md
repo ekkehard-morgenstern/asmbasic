@@ -5,6 +5,10 @@ An assembly language BASIC compile and go system, initially for x86-64.
 The project is in its earliest stages of development, and I have little spare time, so don't expect much.
 Code in this repository can change and be restructured without prior warning.
 
+## Cloning The Repository
+
+To clone the repository, don't forget the "--recursive" option on "git clone".
+
 ## Compiling
 
 To compile this package, you need to install a C development environment first, and then NASM (the Netwide Assembler), and then the SDL2 development package.
