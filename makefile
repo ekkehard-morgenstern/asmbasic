@@ -29,7 +29,7 @@ ASMOPT=
 LNKOPT=-s -no-pie
 endif
 
-.SUFFIXES:	.nasm
+.SUFFIXES:	.nasm .ebnf .pl
 
 .nasm.o:
 	nasm -f elf64 $(ASMOPT) -l $*.lst -o $@ $<
@@ -42,7 +42,7 @@ clean:
 
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
-		sdlconshr.o tokens.o toknum.o 8x12font1.o
+		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -51,6 +51,12 @@ asmbasic: $(MODULES)
 
 ebnfcomp/ebnfcomp:
 	cd ebnfcomp && make && cd ..
+
+mainsyntax.nasm: main.ebnf
+	ebnfcomp/ebnfcomp --asm mainsyntax <main.ebnf
+
+main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
+	./build_main_ebnf.pl
 
 main.o: 	main.nasm
 
@@ -83,3 +89,5 @@ tokens.o: 	tokens.nasm
 toknum.o: 	toknum.nasm
 
 8x12font.o: 8x12font.nasm
+
+mainsyntax.o: mainsyntax.nasm mainsyntax.inc
