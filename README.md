@@ -28,6 +28,8 @@ In default or SDL mode (default, or switched on with the "--sdl" option), the co
 
 To get the previous behavior, (also) specify the "--testtok" option, which will instead enter tokenizer testing mode and outputting the tokenized form as well as the detokenized form of the input lines.
 
+To print the parsing tree, specify the "--dumppt" option, which will output it to standard output and then exit the program. Since parts of it are naturally self-recursive, branches that have already been printed are output as "...".
+
 ## Limitations
 
 Some of the currently defined limits are as follows:

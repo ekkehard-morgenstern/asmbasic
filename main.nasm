@@ -32,7 +32,7 @@ LBUF_SIZE               equ         8192
 
                         global      main
                         extern      init_locale,chkcputype
-                        extern      init_tokenizer,initparsetree
+                        extern      init_tokenizer,initparsetree,dumpparsetree
                         extern      dump_tokenmap
                         extern      pb_initstdio,pb_initsdl,pb_readln,strlen
                         extern      tokenize,detokenize,tok_dumplinebuf
@@ -48,7 +48,12 @@ main                    enter       0,0
                         call        chkcputype
                         call        initparsetree
 
-                        cmp         qword [consolemode],0
+                        cmp         qword [dumppt],0
+                        je          .notdumppt
+                        call        dumpparsetree
+                        jmp         .end
+
+.notdumppt              cmp         qword [consolemode],0
                         je          .defaultconsole
 
                         ; stdio or curses: use standard I/O
@@ -198,7 +203,15 @@ getargs                 enter       0x20,0
                         mov         qword [testtok],1
                         jmp         .argloop
 
-.nottesttok             mov         rdi,[stderr]
+.nottesttok             mov         rdi,r14
+                        lea         rsi,[dumpptoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .notdumppt
+                        mov         qword [dumppt],1
+                        jmp         .argloop
+
+.notdumppt              mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -304,6 +317,7 @@ helpmode                resq        1
 consolemode             resq        1
 filename                resq        1
 testtok                 resq        1
+dumppt                  resq        1
 
                         section     .rodata
 
@@ -316,6 +330,7 @@ soption                 db          's',0
 cursesoption            db          'curses',0
 coption                 db          'c',0
 testtokoption           db          'testtok',0
+dumpptoption            db          'dumppt',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
@@ -355,5 +370,7 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          '  --curses -c          ncurses (not impl)'
                         db          10
                         db          '  --testtok            test tokenizer',10
+                        db          '  --dumppt             dump parsing tree'
+                        db          10
                         db          0
                         align       8,db 0
