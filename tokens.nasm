@@ -1548,27 +1548,28 @@ tokentbl                db          4,2,"ABS(",0x03,0x00
                         db          5,2,"STR$(",0x03,0x98
                         db          3,2,"SUB",0x03,0x99
                         db          3,2,"SYS",0x03,0x9a
-                        db          2,2,"TI",0x03,0x9b
-                        db          3,2,"TI$",0x03,0x9c
-                        db          5,2,"TIME$",0x03,0x9d
-                        db          5,2,"TIMER",0x03,0x9e
-                        db          2,2,"TO",0x03,0x9f
-                        db          5,2,"TRACE",0x03,0xa0
-                        db          4,2,"TYPE",0x03,0xa1
-                        db          4,2,"UNI(",0x03,0xa2
-                        db          5,2,"UNI$(",0x03,0xa3
-                        db          6,2,"UNLESS",0x03,0xa4
-                        db          5,2,"UNTIL",0x03,0xa5
-                        db          5,2,"USING",0x03,0xa6
-                        db          4,2,"VAL(",0x03,0xa7
-                        db          4,2,"VTAB",0x03,0xa8
-                        db          5,2,"VTAB(",0x03,0xa9
-                        db          6,2,"VTAB$(",0x03,0xaa
-                        db          4,2,"WEND",0x03,0xab
-                        db          5,2,"WHILE",0x03,0xac
-                        db          4,2,"XNOR",0x03,0xad
-                        db          3,2,"XOR",0x03,0xae
-                        db          5,2,"YIELD",0x03,0xaf
+                        db          4,2,"THEN",0x03,0x9b
+                        db          2,2,"TI",0x03,0x9c
+                        db          3,2,"TI$",0x03,0x9d
+                        db          5,2,"TIME$",0x03,0x9e
+                        db          5,2,"TIMER",0x03,0x9f
+                        db          2,2,"TO",0x03,0xa0
+                        db          5,2,"TRACE",0x03,0xa1
+                        db          4,2,"TYPE",0x03,0xa2
+                        db          4,2,"UNI(",0x03,0xa3
+                        db          5,2,"UNI$(",0x03,0xa4
+                        db          6,2,"UNLESS",0x03,0xa5
+                        db          5,2,"UNTIL",0x03,0xa6
+                        db          5,2,"USING",0x03,0xa7
+                        db          4,2,"VAL(",0x03,0xa8
+                        db          4,2,"VTAB",0x03,0xa9
+                        db          5,2,"VTAB(",0x03,0xaa
+                        db          6,2,"VTAB$(",0x03,0xab
+                        db          4,2,"WEND",0x03,0xac
+                        db          5,2,"WHILE",0x03,0xad
+                        db          4,2,"XNOR",0x03,0xae
+                        db          3,2,"XOR",0x03,0xaf
+                        db          5,2,"YIELD",0x03,0xb0
 tokentbl_size           equ         $-tokentbl
 tokentbl_name           db          7,"default"
 

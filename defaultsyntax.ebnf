@@ -84,14 +84,17 @@ TOKEN chan := '#' ( number | num-ident  ) .
 TOKEN jump-target := number | num-ident .
 TOKEN loop-variable := num-ident .
 TOKEN loop-or-jump := loop-variable | jump-target .
+TOKEN map-variable := num-ident | str-ident .
+TOKEN next-variable := map-variable .
 
--- jump-target-list := jump-target { ',' jump-target } .
-loop-variable-list := loop-variable { ',' loop-variable } .
+jump-target-list := jump-target { ',' jump-target } .
+next-variable-list := next-variable { ',' next-variable } .
 chan-list := chan { ',' chan } .
 
 num-array-ident := num-func-ident ')' .
 str-array-ident := str-func-ident ')' .
 array-ident := num-array-ident | str-array-ident .
+array-ident-list := array-ident { ',' array-ident } .
 
 identifier := num-ident | str-ident | num-array-ident | str-array-ident .
 identifier-list := identifier { ',' identifier } .
@@ -150,13 +153,13 @@ num-dim-expr := num-func-ident dimension-list ')' .
 str-dim-expr := str-func-ident dimension-list ')' .
 dim-expr := num-dim-expr | str-dim-expr .
 dim-list := dim-expr { ',' dim-expr } .
-dim-stmt := 'DIM' dim-list .
+dim-stmt := 'DIM' dim-list | 'ERASE' array-ident-list .
 
 do-stmt := 'DO' [ ( 'WHILE' | 'UNTIL' ) cond-expr ] .
 
 for-stmt := 'FOR' loop-variable '=' num-expr ( 'TO' | 'DOWNTO' ) num-expr
                 [ 'STEP' num-expr ] |
-            ( 'FOR' 'EACH' | 'FOREACH' ) loop-variable [ ',' loop-variable ]
+            ( 'FOR' 'EACH' | 'FOREACH' ) map-variable [ ',' map-variable ]
                  'IN' array-ident |
             ( 'FOR' 'EVER' | 'FOREVER' ) |
             'REPEAT' |
@@ -164,17 +167,24 @@ for-stmt := 'FOR' loop-variable '=' num-expr ( 'TO' | 'DOWNTO' ) num-expr
 
 loop-stmt := 'LOOP' [ ( 'WHILE' | 'UNTIL' ) cond-expr ] |
              ( 'WHILE' | 'UNTIL' ) cond-expr |
-             'NEXT' loop-variable-list |
+             'NEXT' [ next-variable-list ] |
+             'EXIT' [ loop-or-jump ] |
              'WEND' .
+
+goto-stmt := gosub-or-goto jump-target .
+
+if-stmt := ( 'IF' | 'UNLESS' ) cond-expr 'THEN' [ gosub-or-goto ] jump-target
+           [ 'ELSE' [ gosub-or-goto ] jump-target ] |
+           ( 'IF' | 'UNLESS' ) cond-expr | 'END' ( 'IF' | 'UNLESS' ) .
 
 any-mode-stmt := break-stmt | call-stmt | catalog-stmt | def-char-stmt |
                  clear-stmt | close-stmt | cls-stmt | color-stmt |
-                 delete-stmt | dim-stmt | do-stmt | for-stmt | loop-stmt .
+                 delete-stmt | dim-stmt | do-stmt | for-stmt | loop-stmt |
+                 goto-stmt | if-stmt .
 
 -- program mode ONLY statements:
 
-after-or-every-stmt := ( 'AFTER' | 'EVERY' ) num-expr gosub-or-goto
-                       jump-target .
+after-or-every-stmt := ( 'AFTER' | 'EVERY' ) num-expr goto-stmt .
 again-or-exit-stmt := ( 'AGAIN' | 'EXIT' ) [ loop-or-jump ] .
 chain-stmt := 'CHAIN' [ 'MERGE' ] str-expr .
 
@@ -191,11 +201,13 @@ num-func-decl := num-func-ident identifier-list ')' .
 str-func-decl := str-func-ident identifier-list ')' .
 func-decl     := num-func-decl | str-func-decl .
 
-func-stmt := ( 'FUNC' | 'FUNCTION' ) func-decl .
-
+func-stmt := ( 'FUNC' | 'FUNCTION' | 'SUB' | 'PROC' | 'PROCEDURE' ) func-decl .
+end-stmt := 'END' [ 'FUNC' | 'FUNCTION' | 'SUB' | 'PROC' | 'PROCEDURE' ] .
+onerr-stmt := 'ON' 'ERROR' ( 'OFF' | goto-stmt ) .
+ongoto-stmt := 'ON' expr gosub-or-goto jump-target-list .
 
 program-only-stmt := after-or-every-stmt | again-or-exit-stmt | chain-stmt |
-    data-stmt | def-fn-stmt | func-stmt .
+    data-stmt | def-fn-stmt | func-stmt | end-stmt | onerr-stmt | ongoto-stmt .
 
 -- direct mode ONLY statements:
 
