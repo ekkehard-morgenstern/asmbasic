@@ -233,8 +233,89 @@ stn_from_impt           enter       0x18,0
                         ; terminal match depends on terminal type
                         ; (since we're operating on a token buffer, all the
                         ; terminals we encounter must be of type TT_BINARY)
-.terminal:
+.terminal               cmp         byte [rbx+impn_termType],TT_BINARY
+                        jne         .noresult
 
+                        ; text pointer contains more info
+                        mov         rax,[rbx+impn_text]
+                        mov         dl,[rax]
+                        cmp         dl,TB_DATA  ; literal data match
+                        je          .termdata
+
+                        ; control byte: check
+                        mov         al,dl
+                        and         al,TBF_PARAM-1
+                        cmp         al,TB_BYTE
+                        jb          .noresult
+                        cmp         al,TB_QWORD
+                        ja          .noresult
+
+                        ; 1 << (al-TB_BYTE) is the number of bytes
+                        ; to be read literally; to rcx
+                        mov         cl,al
+                        sub         cl,TB_BYTE
+                        mov         rax,1
+                        shl         rax,cl
+                        mov         rcx,rax
+
+                        ; check if the TBF_PARAM flag is set
+                        test        dl,TBF_PARAM
+                        jnz         .termparam
+
+                        ; nope: match of N bytes: check if that number of bytes
+                        ; would exhaust the token pointer
+.termcheck              mov         rax,[stn_tokenptr]
+                        add         rax,rcx
+                        cmp         rax,[stn_tokenend]
+                        ja          .noresult
+
+                        ; nope: just update the token pointer; use the old
+                        ; value in creating a new node
+.termcreate             mov         r12,[stn_tokenptr]
+                        mov         [stn_tokenptr],rax
+                        mov         rdi,syntreenode_size
+                        call        xalloc
+                        mov         r13,rax
+                        mov         [r13+stn_match],rbx
+                        mov         [r13+stn_token],r12
+                        mov         qword [r13+stn_nargs],0
+                        mov         qword [r13+stn_args],0
+
+                        ; done
+                        mov         rax,r13
+                        jmp         .withresult
+
+                        ; check if the TBF_WRITE flag is also set
+.termparam              test        dl,TBF_WRITE
+                        jnz         .termwrite
+
+                        ; nope, it's a read: get the previously saved parameter
+                        ; and use it to skip a number of bytes(*rcx)
+                        mov         rax,rcx
+                        mul         qword [stn_tokenparam]
+                        mov         rcx,rax
+                        jmp         .termcheck
+
+                        ; it's a write: first check if possible, then read a
+                        ; number of bytes and store them in stn_tokenparam for
+                        ; subsequent use (usually the sibling node following
+                        ; right after the current one)
+.termwrite              mov         rax,[stn_tokenptr]
+                        add         rax,rcx
+                        cmp         rcx,[stn_tokenend]
+                        ja          .noresult
+
+                        mov         rdx,[stn_tokenptr]
+                        xor         rax,rax
+.termwritegetcnt        shl         rax,8
+                        mov         al,[rdx]
+                        inc         rdx
+                        loop        .termwritegetcnt
+                        mov         [stn_tokenparam],rax
+                        mov         rax,rdx
+                        jmp         .termcreate
+
+.termdata:
 
                         ; restore token position, return 0
 .noresult               mov         rax,[rbp-0x08]
@@ -338,3 +419,4 @@ syntree                 dq          0
 
 stn_tokenptr            resq        1
 stn_tokenend            resq        1
+stn_tokenparam          resq        1
