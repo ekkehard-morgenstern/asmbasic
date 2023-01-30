@@ -105,6 +105,8 @@ func-ap     := num-func-ap | str-func-ap .
 
 num-var-ref := num-ident | predef-num-var | num-func-ap .
 str-var-ref := str-ident | predef-str-var | str-func-ap .
+var-ref     := num-var-ref | str-var-ref .
+var-ref-list := var-ref { ',' var-ref } .
 
 num-base-expr  := number | num-var-ref | '(' num-expr ')' .
 num-unary-expr := [ not-oper | add-oper | sub-oper ] num-base-expr .
@@ -145,7 +147,6 @@ clear-stmt := 'CLEAR' .
 close-stmt := 'CLOSE' [ chan-list ] .
 cls-stmt := 'CLS' [ num-expr ] .
 color-stmt := 'COLOR' num-expr [ ',' num-expr ] .
-delete-stmt := 'DELETE' number [ '-' number ] .
 
 dimension := num-expr | 'DYNAMIC' | 'ASSOC' .
 dimension-list := dimension { ',' dimension } .
@@ -168,19 +169,45 @@ for-stmt := 'FOR' loop-variable '=' num-expr ( 'TO' | 'DOWNTO' ) num-expr
 loop-stmt := 'LOOP' [ ( 'WHILE' | 'UNTIL' ) cond-expr ] |
              ( 'WHILE' | 'UNTIL' ) cond-expr |
              'NEXT' [ next-variable-list ] |
-             'EXIT' [ loop-or-jump ] |
+             ( 'EXIT' | 'LEAVE' | 'ITERATE' | 'AGAIN' ) [ loop-or-jump ] |
              'WEND' .
 
 goto-stmt := gosub-or-goto jump-target .
 
-if-stmt := ( 'IF' | 'UNLESS' ) cond-expr 'THEN' [ gosub-or-goto ] jump-target
-           [ 'ELSE' [ gosub-or-goto ] jump-target ] |
-           ( 'IF' | 'UNLESS' ) cond-expr | 'END' ( 'IF' | 'UNLESS' ) .
+if-jump := ( 'THEN' [ gosub-or-goto ] | gosub-or-goto ) jump-target
+           [ 'ELSE' [ gosub-or-goto ] jump-target ] .
+
+then-line := 'THEN' any-mode-stmt-list .
+
+if-stmt := ( 'IF' | 'UNLESS' ) cond-expr [ if-jump | then-line ] |
+           'ELSE' ( 'IF' | 'UNLESS' ) cond-expr |
+           'ELSE' [ any-mode-stmt-list ] |
+           'END' ( 'IF' | 'UNLESS' ) .
+
+tab-stmt := ( 'HTAB' | 'VTAB' ) num-expr .
+ink-stmt := 'INK' num-expr [ ',' num-expr ] .
+input-stmt := [ 'LINE' ] 'INPUT' [ ( chan | str-expr ) ',' ] var-ref-list .
+assign-stmt := [ 'LET' ] var-ref '=' expr .
+open-stmt := 'OPEN' str-expr [ 'FOR' ( 'INPUT' [ 'AND' 'OUTPUT' ] |
+             'OUTPUT' ) ] 'AS' chan |
+             'OPEN' chan ',' str-expr .
+randomize-stmt := 'RANDOMIZE' [ num-expr | 'TIMER' ] .
+restore-stmt := 'RESTORE' [ jump-target ] .
+safety-stmt := 'SAFETY' ( 'ON' | 'OFF' ) .
+yield-stmt := 'YIELD' .
+seek-stmt := 'SEEK' chan ',' num-expr .
+sys-stmt := 'SYS' num-expr [ ',' expr-list ] .
+poke-stmt := ( 'POKE' | 'POKEB' | 'POKED' | 'POKEF' | 'POKEL' | 'POKEQ' |
+             'POKEW' ) num-expr ',' num-expr .
 
 any-mode-stmt := break-stmt | call-stmt | catalog-stmt | def-char-stmt |
                  clear-stmt | close-stmt | cls-stmt | color-stmt |
-                 delete-stmt | dim-stmt | do-stmt | for-stmt | loop-stmt |
-                 goto-stmt | if-stmt .
+                 dim-stmt | do-stmt | for-stmt | loop-stmt |
+                 goto-stmt | if-stmt | tab-stmt | ink-stmt | input-stmt |
+                 assign-stmt | open-stmt | randomize-stmt | restore-stmt |
+                 safety-stmt | yield-stmt | seek-stmt | sys-stmt | poke-stmt .
+
+any-mode-stmt-list := any-mode-stmt { ':' any-mode-stmt } .
 
 -- program mode ONLY statements:
 
@@ -205,24 +232,40 @@ func-stmt := ( 'FUNC' | 'FUNCTION' | 'SUB' | 'PROC' | 'PROCEDURE' ) func-decl .
 end-stmt := 'END' [ 'FUNC' | 'FUNCTION' | 'SUB' | 'PROC' | 'PROCEDURE' ] .
 onerr-stmt := 'ON' 'ERROR' ( 'OFF' | goto-stmt ) .
 ongoto-stmt := 'ON' expr gosub-or-goto jump-target-list .
+label-stmt := 'LABEL' num-ident .
+resume-stmt := 'RESUME' [ 'NEXT' | jump-target ] .
+return-stmt := 'RETURN' [ num-expr ] .
+stop-stmt := 'STOP' [ num-expr ] .
 
 program-only-stmt := after-or-every-stmt | again-or-exit-stmt | chain-stmt |
-    data-stmt | def-fn-stmt | func-stmt | end-stmt | onerr-stmt | ongoto-stmt .
+    data-stmt | def-fn-stmt | func-stmt | end-stmt | onerr-stmt | ongoto-stmt |
+    label-stmt | resume-stmt | return-stmt | stop-stmt .
 
 -- direct mode ONLY statements:
 
 auto-stmt := 'AUTO' [ number [ ',' number ] ] .
 cont-stmt := 'CONT' [ jump-target ] .
 edit-stmt := 'EDIT' dec-number .
+load-stmt := ( 'LOAD' | 'OLD' ) str-expr .
+save-stmt := 'SAVE' str-expr .
+list-stmt := 'LIST' number [ '-' number ] .
+delete-stmt := 'DELETE' number [ '-' number ] .
+renum-stmt := ( 'RENUM' | 'RENUMBER' ) number [ ',' number ] .
+merge-stmt := 'MERGE' str-expr .
+new-stmt := 'NEW' .
+rename-stmt := 'RENAME' str-expr 'TO' str-expr .
+run-stmt := 'RUN' [ jump-target ] .
 
 
-
-direct-only-stmt := auto-stmt | cont-stmt | edit-stmt .
+direct-only-stmt := auto-stmt | cont-stmt | edit-stmt | load-stmt | save-stmt |
+                    list-stmt | delete-stmt | renum-stmt | merge-stmt |
+                    new-stmt | rename-stmt | run-stmt .
 
 -- combined modes
 
 program-stmt := program-only-stmt | any-mode-stmt .
-program-line := dec-number [ program-stmt { ':' program-stmt } ] .
+program-stmt-list := program-stmt { ':' program-stmt } .
+program-line := dec-number [ program-stmt-list ] .
 
 direct-stmt := direct-only-stmt | any-mode-stmt .
 

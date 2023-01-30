@@ -358,4 +358,4 @@ impn_fmt_nest           db          '%-*.*s...',10,0
 parsetree               resq        1
 impn_calldepth          resq        1
 impn_lutptr             resq        1
-impn_lut                resq        2000
+impn_lut                resq        4000
