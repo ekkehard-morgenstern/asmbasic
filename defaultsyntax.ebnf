@@ -199,13 +199,22 @@ seek-stmt := 'SEEK' chan ',' num-expr .
 sys-stmt := 'SYS' num-expr [ ',' expr-list ] .
 poke-stmt := ( 'POKE' | 'POKEB' | 'POKED' | 'POKEF' | 'POKEL' | 'POKEQ' |
              'POKEW' ) num-expr ',' num-expr .
+resume-stmt := 'RESUME' [ 'NEXT' | jump-target ] .
+return-stmt := 'RETURN' [ num-expr ] .
+at-clause := 'AT(' num-expr [ ',' num-expr ] ')' .
+tab-clause := 'HTAB(' num-expr ')' | 'VTAB(' num-expr ')' .
+using-clause := 'USING' str-expr .
+print-elem := at-clause | tab-clause | using-clause | expr .
+print-elem-list := print-elem { ( ';' | ',' ) print-elem } .
+print-stmt := 'PRINT' [ chan ',' ] [ print-elem-list ] .
 
 any-mode-stmt := break-stmt | call-stmt | catalog-stmt | def-char-stmt |
                  clear-stmt | close-stmt | cls-stmt | color-stmt |
                  dim-stmt | do-stmt | for-stmt | loop-stmt |
                  goto-stmt | if-stmt | tab-stmt | ink-stmt | input-stmt |
                  assign-stmt | open-stmt | randomize-stmt | restore-stmt |
-                 safety-stmt | yield-stmt | seek-stmt | sys-stmt | poke-stmt .
+                 safety-stmt | yield-stmt | seek-stmt | sys-stmt | poke-stmt |
+                 resume-stmt | return-stmt | print-stmt .
 
 any-mode-stmt-list := any-mode-stmt { ':' any-mode-stmt } .
 
@@ -233,13 +242,11 @@ end-stmt := 'END' [ 'FUNC' | 'FUNCTION' | 'SUB' | 'PROC' | 'PROCEDURE' ] .
 onerr-stmt := 'ON' 'ERROR' ( 'OFF' | goto-stmt ) .
 ongoto-stmt := 'ON' expr gosub-or-goto jump-target-list .
 label-stmt := 'LABEL' num-ident .
-resume-stmt := 'RESUME' [ 'NEXT' | jump-target ] .
-return-stmt := 'RETURN' [ num-expr ] .
 stop-stmt := 'STOP' [ num-expr ] .
 
 program-only-stmt := after-or-every-stmt | again-or-exit-stmt | chain-stmt |
     data-stmt | def-fn-stmt | func-stmt | end-stmt | onerr-stmt | ongoto-stmt |
-    label-stmt | resume-stmt | return-stmt | stop-stmt .
+    label-stmt | stop-stmt .
 
 -- direct mode ONLY statements:
 
@@ -255,11 +262,12 @@ merge-stmt := 'MERGE' str-expr .
 new-stmt := 'NEW' .
 rename-stmt := 'RENAME' str-expr 'TO' str-expr .
 run-stmt := 'RUN' [ jump-target ] .
+trace-stmt := 'TRACE' ( 'ON' | 'OFF' ) .
 
 
 direct-only-stmt := auto-stmt | cont-stmt | edit-stmt | load-stmt | save-stmt |
                     list-stmt | delete-stmt | renum-stmt | merge-stmt |
-                    new-stmt | rename-stmt | run-stmt .
+                    new-stmt | rename-stmt | run-stmt | trace-stmt .
 
 -- combined modes
 
