@@ -30,7 +30,7 @@
 
                         section     .text
 
-                        extern      parsetree,xfree,xalloc
+                        extern      parsetree,xfree,xalloc,xrealloc
 
                         ; rdi - in-memory parse tree node
 stn_from_impt           enter       0x18,0
@@ -43,6 +43,10 @@ stn_from_impt           enter       0x18,0
                         mov         rax,[stn_tokenptr]
                         mov         [rbp-0x08],rax
 
+                        ; test if node is zero
+                        test        rbx,rbx
+                        jz          .noresult
+
                         ; check node class
                         mov         al,[rbx+impn_nodeClass]
                         cmp         al,NC_PRODUCTION
@@ -52,7 +56,7 @@ stn_from_impt           enter       0x18,0
                         cmp         al,NC_OPTIONAL
                         je          .optional
                         cmp         al,NC_OPTIONAL_REPETITIVE
-                        je          .optional
+                        je          .optional_repetitive
                         cmp         al,NC_TERMINAL
                         je          .terminal
 
@@ -136,8 +140,95 @@ stn_from_impt           enter       0x18,0
                         jmp         .noresult
 
                         ; optional match requires ONE branch must be
-                        ; satisfied.
-.optional:
+                        ; satisfied. since optional matches are ALWAYS of type
+                        ; _NT_GENERIC, the resulting branch can simply be passed
+                        ; to the parent without further ado.
+.optional               xor         r12,r12     ; branch index
+.optnextbr              cmp         r12w,[rbx+impn_numBranches]
+                        jae         .noresult  ; no match found
+                        mov         rax,[rbx+impn_branches]
+                        mov         rax,[rax+r12*8]
+                        mov         rdi,rax
+                        call        stn_from_impt
+                        test        rax,rax
+                        jnz         .withresult     ; result returned directly
+                        inc         r12
+                        jmp         .optnextbr
+
+                        ; optional repetitive match requires ONE branch must be
+                        ; satisfied; then the operation is retried as long as
+                        ; results exist. Normally, I would implement this by
+                        ; preallocating a certain number of branches,
+                        ; but here, since the speed penalty is negligible
+                        ; (since we're always processing one program line at a
+                        ; time), I'll do a simple realloc every time a new match
+                        ; is detected.
+                        ;
+                        ; preallocate and populate syntax node (except branches)
+.optional_repetitive    mov         rdi,syntreenode_size
+                        call        xalloc
+                        mov         r13,rax
+                        mov         [r13+stn_match],rbx
+                        mov         qword [r13+stn_token],0
+                        mov         qword [r13+stn_nargs],0
+                        mov         qword [r13+stn_args],0
+
+                        ; iterate over branches to find a match
+.optrep                 xor         r12,r12     ; branch index
+.optrepnextbr           cmp         r12w,[rbx+impn_numBranches]
+                        jae         .optrepdone
+                        mov         rax,[rbx+impn_branches]
+                        mov         rax,[rax+r12*8]
+                        mov         rdi,rax
+                        call        stn_from_impt
+                        test        rax,rax
+                        jnz         .optrepgotmatch
+                        inc         r12
+                        jmp         .optnextbr
+
+                        ; got a match: resize branch array and add branch
+.optrepgotmatch         mov         r12,rax ; r12 - branch to be added
+                        mov         rdi,[r13+stn_args]
+                        inc         qword [r13+stn_nargs]
+                        mov         rsi,[r13+stn_nargs]
+                        shl         rsi,3 ; *8
+                        call        xrealloc
+                        mov         [r13+stn_args],rax
+                        mov         rdx,[r13+stn_nargs]
+                        dec         rdx
+                        mov         [rax+rdx*8],r12
+                        jmp         .optrep
+
+                        ; done matching, check if there's more than one match
+                        ; if it's just one match, return that.
+                        ; if it's zero matches, return 0.
+.optrepdone             cmp         qword [r13+stn_nargs],0
+                        je          .optrepempty
+                        cmp         qword [r13+stn_nargs],1
+                        je          .optrepone
+                        ; more than one match; syntax node is good as it is
+                        mov         rax,r13
+                        jmp         .withresult
+
+                        ; no result: free syntax node and return 0
+.optrepempty            mov         rdi,r13
+                        call        free_stn
+                        jmp         .noresult
+
+                        ; exactly one result: return that node instead
+.optrepone              mov         r12,[r13+stn_args]
+                        mov         r12,[r12]
+
+                        ; clear out branch fields and free current node
+                        xor         rax,rax
+                        mov         [r13+stn_nargs],rax
+                        mov         [r13+stn_args],rax
+                        mov         rdi,r13
+                        call        free_stn
+
+                        ; return child node
+                        mov         rax,r12
+                        jmp         .withresult
 
                         ; terminal match depends on terminal type
                         ; (since we're operating on a token buffer, all the
