@@ -302,7 +302,7 @@ stn_from_impt           enter       0x18,0
                         ; right after the current one)
 .termwrite              mov         rax,[stn_tokenptr]
                         add         rax,rcx
-                        cmp         rcx,[stn_tokenend]
+                        cmp         rax,[stn_tokenend]
                         ja          .noresult
 
                         mov         rdx,[stn_tokenptr]
@@ -315,7 +315,27 @@ stn_from_impt           enter       0x18,0
                         mov         rax,rdx
                         jmp         .termcreate
 
-.termdata:
+                        ; get number of bytes
+.termdata               inc         rax
+                        movzx       rcx,byte [rax]
+                        inc         rax
+                        mov         rsi,rax
+
+                        ; check if token data is available
+                        mov         rax,[stn_tokenptr]
+                        add         rax,rcx
+                        cmp         rax,[stn_tokenend]
+                        ja          .noresult
+                        mov         rdi,[stn_tokenptr]
+
+                        ; yes: compare with expected data
+                        cld
+                        repe        cmpsb
+                        jne         .noresult  ; no match ->
+
+                        ; match: create new node
+                        mov         rax,rdi
+                        jmp         .termcreate
 
                         ; restore token position, return 0
 .noresult               mov         rax,[rbp-0x08]
