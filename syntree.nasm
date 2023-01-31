@@ -145,8 +145,7 @@ stn_from_impt           enter       0x20,0
 
                         ; pretend the current branch index is the number of
                         ; branches in this node
-.manfailed              mov         rax,r12
-                        mov         [r13+stn_nargs],rax
+.manfailed              mov         [r13+stn_nargs],r12
 
                         ; free the node
                         mov         rdi,r13
@@ -419,32 +418,28 @@ free_stn                enter       0x10,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         rbx,rdi     ; rbx - syntreenode pointer
-                        xor         r12,r12     ; r12 - argument index
 
                         mov         rax,[rbx+stn_args]
                         test        rax,rax
                         jz          .noargs
 
                         mov         r12,[rbx+stn_nargs]
-                        test        r12,r12
-                        jz          .noargs
-
 .prevbranch             dec         r12
-                        cmp         r12,0
                         jl          .endargs
 
                         mov         rax,[rbx+stn_args]
-                        mov         rax,[rax+r12*8]
-                        test        rax,rax
+                        mov         rdi,[rax+r12*8]
+                        test        rdi,rdi
                         jz          .prevbranch
+                        mov         qword [rax+r12*8],0
 
                         ; free branch
-                        mov         rdi,rax
                         call        free_stn
                         jmp         .prevbranch
 
                         ; free args vector
 .endargs                mov         rdi,[rbx+stn_args]
+                        mov         qword [rbx+stn_args],0
                         call        xfree
 
                         ; free node object
