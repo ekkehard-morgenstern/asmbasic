@@ -31,9 +31,12 @@
                         section     .text
 
                         extern      parsetree,xfree,xalloc,xrealloc
+                        extern      pb_putfmt,nc_texts,tt_texts,nt_texts
+
+                        global      crtsyntree,delsyntree
 
                         ; rdi - in-memory parse tree node
-stn_from_impt           enter       0x18,0
+stn_from_impt           enter       0x20,0
                         mov         [rbp-0x10],rbx
                         mov         [rbp-0x18],r12
                         mov         [rbp-0x20],r13
@@ -47,12 +50,25 @@ stn_from_impt           enter       0x18,0
                         test        rbx,rbx
                         jz          .noresult
 
+                        ; print node information
+                        lea         rdi,[pt_dbg_fmt]
+                        movzx       rax,byte [rbx+impn_nodeClass]
+                        mov         rsi,[nc_texts+rax*8]
+                        movzx       rax,byte [rbx+impn_termType]
+                        mov         rdx,[tt_texts+rax*8]
+                        movzx       rax,word [rbx+impn_nodeType]
+                        mov         rcx,[nt_texts+rax*8]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
                         ; check node class
                         mov         al,[rbx+impn_nodeClass]
                         cmp         al,NC_PRODUCTION
                         je          .mandatory
                         cmp         al,NC_MANDATORY
                         je          .mandatory
+                        cmp         al,NC_ALTERNATIVE
+                        je          .alternative
                         cmp         al,NC_OPTIONAL
                         je          .optional
                         cmp         al,NC_OPTIONAL_REPETITIVE
@@ -84,8 +100,7 @@ stn_from_impt           enter       0x18,0
 .mannextbr              cmp         r12w,word [rbx+impn_numBranches]
                         jae         .manmatch
                         mov         rax,[rbx+impn_branches]
-                        mov         rax,[rax+r12*8]
-                        mov         rdi,rax
+                        mov         rdi,[rax+r12*8]
                         call        stn_from_impt
                         test        rax,rax
                         jz          .manfailed
@@ -130,7 +145,8 @@ stn_from_impt           enter       0x18,0
 
                         ; pretend the current branch index is the number of
                         ; branches in this node
-.manfailed              mov         [r13+stn_nargs],r12w
+.manfailed              mov         rax,r12
+                        mov         [r13+stn_nargs],rax
 
                         ; free the node
                         mov         rdi,r13
@@ -139,23 +155,53 @@ stn_from_impt           enter       0x18,0
                         ; finish without result
                         jmp         .noresult
 
-                        ; optional match requires ONE branch must be
-                        ; satisfied. since optional matches are ALWAYS of type
-                        ; _NT_GENERIC, the resulting branch can simply be passed
-                        ; to the parent without further ado.
-.optional               xor         r12,r12     ; branch index
-.optnextbr              cmp         r12w,[rbx+impn_numBranches]
+                        ; alternative match requires ONE branch must be
+                        ; satisfied. since alternative matches are ALWAYS of
+                        ; type _NT_GENERIC, the resulting branch can simply be
+                        ; passed to the parent without further ado.
+.alternative            xor         r12,r12     ; branch index
+.altnextbr              cmp         r12w,[rbx+impn_numBranches]
                         jae         .noresult  ; no match found
                         mov         rax,[rbx+impn_branches]
-                        mov         rax,[rax+r12*8]
-                        mov         rdi,rax
+                        mov         rdi,[rax+r12*8]
                         call        stn_from_impt
                         test        rax,rax
                         jnz         .withresult     ; result returned directly
                         inc         r12
+                        jmp         .altnextbr
+
+                        ; optional match does always match, whether it was
+                        ; successful or not. thus, it comes out with NULL
+                        ; value child branches if those were unsuccessful.
+
+                        ; preallocate and populate syntax node (except branches)
+.optional               mov         rdi,syntreenode_size
+                        call        xalloc
+                        mov         r13,rax
+                        mov         [r13+stn_match],rbx
+                        mov         qword [r13+stn_token],0
+                        movzx       rax,word [rbx+impn_numBranches]
+                        mov         [r13+stn_nargs],rax
+                        mov         rdi,rax
+                        shl         rdi,3   ; *8
+                        call        xalloc
+                        mov         [r13+stn_args],rax
+
+                        ; match all of the branches, storing the results
+.optnextbr              cmp         r12w,word [rbx+impn_numBranches]
+                        jae         .optdone
+                        mov         rax,[rbx+impn_branches]
+                        mov         rdi,[rax+r12*8]
+                        call        stn_from_impt
+                        mov         rdx,[r13+stn_args]
+                        mov         [rdx+r12*8],rax
+                        inc         r12
                         jmp         .optnextbr
 
-                        ; optional repetitive match requires ONE branch must be
+.optdone                mov         rax,r13
+                        jmp         .withresult
+
+                        ; optional repetitive never fails. one branch can be
                         ; satisfied; then the operation is retried as long as
                         ; results exist. Normally, I would implement this by
                         ; preallocating a certain number of branches,
@@ -178,8 +224,7 @@ stn_from_impt           enter       0x18,0
 .optrepnextbr           cmp         r12w,[rbx+impn_numBranches]
                         jae         .optrepdone
                         mov         rax,[rbx+impn_branches]
-                        mov         rax,[rax+r12*8]
-                        mov         rdi,rax
+                        mov         rdi,[rax+r12*8]
                         call        stn_from_impt
                         test        rax,rax
                         jnz         .optrepgotmatch
@@ -206,14 +251,10 @@ stn_from_impt           enter       0x18,0
                         je          .optrepempty
                         cmp         qword [r13+stn_nargs],1
                         je          .optrepone
+                        ; no result: return empty node
                         ; more than one match; syntax node is good as it is
-                        mov         rax,r13
+.optrepempty            mov         rax,r13
                         jmp         .withresult
-
-                        ; no result: free syntax node and return 0
-.optrepempty            mov         rdi,r13
-                        call        free_stn
-                        jmp         .noresult
 
                         ; exactly one result: return that node instead
 .optrepone              mov         r12,[r13+stn_args]
@@ -350,11 +391,9 @@ stn_from_impt           enter       0x18,0
 
                         ; rdi - tokenbuf
                         ; rsi - tokenbuf size
-crtsyntree              enter       0x20,0
+crtsyntree              enter       0x10,0
                         mov         [rbp-0x08],rdi
                         mov         [rbp-0x10],rsi
-                        mov         [rbp-0x18],rbx
-                        mov         [rbp-0x20],r12
 
                         mov         rax,[syntree]
                         test        rax,rax
@@ -372,8 +411,6 @@ crtsyntree              enter       0x20,0
                         call        stn_from_impt
                         mov         [syntree],rax
 
-                        mov         r12,[rbp-0x20]
-                        mov         rbx,[rbp-0x18]
                         leave
                         ret
 
@@ -389,6 +426,9 @@ free_stn                enter       0x10,0
                         jz          .noargs
 
                         mov         r12,[rbx+stn_nargs]
+                        test        r12,r12
+                        jz          .noargs
+
 .prevbranch             dec         r12
                         cmp         r12,0
                         jl          .endargs
@@ -433,6 +473,8 @@ delsyntree              enter       0,0
 
                         section     .data
 
+                        global      syntree
+
 syntree                 dq          0
 
                         section     .bss
@@ -440,3 +482,8 @@ syntree                 dq          0
 stn_tokenptr            resq        1
 stn_tokenend            resq        1
 stn_tokenparam          resq        1
+
+                        section     .rodata
+
+pt_dbg_fmt              db          '%s,%s,%s',10,0
+                        align       8,db 0

@@ -37,7 +37,8 @@ LBUF_SIZE               equ         8192
                         extern      pb_initstdio,pb_initsdl,pb_readln,strlen
                         extern      tokenize,detokenize,tok_dumplinebuf
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
-                        extern      exit,pb_putfmt
+                        extern      exit,pb_putfmt,crtsyntree,delsyntree
+                        extern      tokenpad,tokenpadptr
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -295,15 +296,44 @@ main_loop               enter       0,0
                         mov         byte [rdi+rax],0
 .nolf                   test        rax,rax
                         jz          .end
+
+                        ; tokenize line buffer
                         lea         rdi,[lbuf]
                         mov         rsi,rax
+                        mov         qword [testtok],1  ; !!TEST!!
                         call        tokenize
 
+                        ; tokenizer failure: this cannot realistically occur,
+                        ; since there are no invalid tokens (anything not one
+                        ; of the standard tokens gets converted into
+                        ; identifiers). Only if the token buffer gets exhausted
+                        ; (i.e. with too long lines), this might be an issue,
+                        ; but I didn't want to output '? Line too long' when I
+                        ; don't know if that was actually the case.
+                        test        rax,rax
+                        jz          .tokfail
+
+                        ; create syntax tree from tokens
+                        lea         rdi,[tokenpad]
+                        mov         rsi,[tokenpadptr]
+                        sub         rsi,rdi
+                        call        crtsyntree
+                        test        rax,rax
+                        jz          .synerr
+
+                        call        delsyntree
 
                         jmp         .lineloop
 .end                    leave
                         ret
 
+.synerr                 lea         rdi,[syntaxerror]
+.printerr               xor         al,al
+                        call        qword [pb_putfmt]
+                        jmp         .readyloop
+
+.tokfail                lea         rdi,[tokenfail]
+                        jmp         .printerr
 
                         section     .bss
                         global      testtok
@@ -337,6 +367,8 @@ morethanonefile         db          '? Extra filename ignored: %s',10,0
 
 greeting                db          'AsmBASIC v0.0.0',10,10,0
 readyprompt             db          'Ready.',10,0
+tokenfail               db          '? Tokenizer failure',10,0
+syntaxerror             db          '? Syntax error',10,0
 
 tokenizertest           db          'AsmBASIC color test',10
                         db          'background colors 0-7: '

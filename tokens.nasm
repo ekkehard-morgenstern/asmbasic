@@ -301,7 +301,8 @@ dump_tokenmap           enter       0x20,0
                         ; rdi - address
                         ; rsi - size of text, in bytes
                         ;
-tokenize                enter       0,0
+tokenize                enter       0x10,0
+                        mov         [rbp-0x08],rbx
 
                         ; call preparation code
                         call        tok_prepare
@@ -314,13 +315,29 @@ tokenize                enter       0,0
 .skipdump               lea         rdi,[linebuf]
                         mov         rsi,[linebuflen]
                         call        tok_main
+                        mov         rbx,rax ; success? -1=true, 0=false
 
                         cmp         qword [testtok],0
                         je          .skipdump2
 
                         call        tok_dumptokbuf
 
-.skipdump2              leave
+.skipdump2              mov         rax,rbx
+                        test        rax,rax
+                        jz          .end
+
+                        ; buffer maxed out?
+                        mov         rax,[tokenpadptr]
+                        cmp         rax,tokenpadend
+                        jb          .ok
+
+                        xor         rax,rax
+                        jmp         .end
+
+.ok                     mov         rax,rbx
+
+.end                    mov         rbx,[rbp-0x08]
+                        leave
                         ret
 
 ; ---------------------------------------------------------------------------
