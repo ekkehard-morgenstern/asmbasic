@@ -33,7 +33,7 @@
                         extern      parsetree,xfree,xalloc,xrealloc
                         extern      pb_putfmt,nc_texts,tt_texts,nt_texts
 
-                        global      crtsyntree,delsyntree
+                        global      crtsyntree,delsyntree,prtsyntree
 
                         ; rdi - in-memory parse tree node
 stn_from_impt           enter       0x20,0
@@ -490,6 +490,78 @@ delsyntree              enter       0,0
 .end                    leave
                         ret
 
+                        ; rdi - tree node
+print_stn               enter       0x20,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         rbx,rdi
+                        inc         qword [stn_calldepth]
+
+                        test        rbx,rbx
+                        jz          .iszero
+
+                        ; indent
+                        lea         rdi,[stn_prt_fmt]
+                        mov         rsi,[stn_calldepth]
+                        dec         rsi
+                        shl         rsi,1   ; *2
+                        mov         rdx,rsi
+                        lea         rcx,[stn_shf_fmt]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+                        ; match node info
+                        mov         r12,[rbx+stn_match]
+                        lea         rdi,[stn_prt_fmt2]
+                        movzx       rax,byte [r12+impn_nodeClass]
+                        mov         rsi,[nc_texts+rax*8]
+                        movzx       rax,byte [r12+impn_termType]
+                        mov         rdx,[tt_texts+rax*8]
+                        movzx       rax,word [r12+impn_nodeType]
+                        mov         rcx,[nt_texts+rax*8]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+                        ; terminal info
+                        cmp         byte [r12+impn_nodeClass],NC_TERMINAL
+                        jne         .notterminal
+                        cmp         byte [r12+impn_termType],TT_BINARY
+                        jne         .notterminal
+
+                        ; TODO: print terminal info
+
+                        ; output branches
+.notterminal            xor         r12,r12
+.nextbr                 cmp         r12,[rbx+stn_nargs]
+                        jae         .endbr
+
+                        mov         rdi,[rbx+stn_args]
+                        mov         rdi,[rdi+r12*8]
+                        call        print_stn
+
+                        inc         r12
+                        jmp         .nextbr
+
+.endbr:
+.iszero                 dec         qword [stn_calldepth]
+                        mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+prtsyntree              enter       0,0
+
+                        mov         rax,[syntree]
+                        test        rax,rax
+                        jz          .end
+
+                        mov         rdi,rax
+                        mov         qword [stn_calldepth],0
+                        call        print_stn
+
+.end                    leave
+                        ret
+
                         section     .data
 
                         global      syntree,stn_debug
@@ -508,4 +580,8 @@ stn_calldepth           resq        1
 
 pt_dbg_fmt              db          'crt %s,%s,%s',10,0
 pt_dbg_fmt2             db          'del %s,%s,%s',10,0
+stn_prt_fmt             db          '%-*.*s',0
+stn_prt_fmt2            db          '%s,%s,%s',10,0
+stn_shf_fmt             db          0
+
                         align       8,db 0

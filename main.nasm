@@ -38,7 +38,7 @@ LBUF_SIZE               equ         8192
                         extern      tokenize,detokenize,tok_dumplinebuf
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
-                        extern      tokenpad,tokenpadptr,stn_debug
+                        extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -328,6 +328,7 @@ main_loop               enter       0,0
                         test        rax,rax
                         jz          .synerr
 
+                        call        prtsyntree
                         call        delsyntree
 
                         jmp         .lineloop
