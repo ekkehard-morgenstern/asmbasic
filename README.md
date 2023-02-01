@@ -22,9 +22,9 @@ To use AsmBASIC, either run it on the command line with "./asmbasic" or create a
 
 When run from the command line, you can specify the "--help" option to see its command line parameters, as in "./asmbasic --help".
 
-In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer.
+In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer. It then outputs the syntax tree.
 
-In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer.
+In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer. It then outputs the syntax tree.
 
 To get the previous behavior, (also) specify the "--testtok" option, which will instead enter tokenizer testing mode and outputting the tokenized form as well as the detokenized form of the input lines.
 
