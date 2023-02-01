@@ -651,8 +651,24 @@ print_stn               enter       0x30,0
                         inc         r12
                         jmp         .nextbr
 
+                        ; NULL node, print
+
+                        ; indent
+.iszero                 lea         rdi,[stn_prt_fmt]
+                        mov         rsi,[stn_calldepth]
+                        dec         rsi
+                        shl         rsi,1   ; *2
+                        mov         rdx,rsi
+                        lea         rcx,[stn_shf_fmt]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+                        lea         rdi,[stn_prt_null]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
 .endbr:
-.iszero                 dec         qword [stn_calldepth]
+.end                    dec         qword [stn_calldepth]
                         mov         r15,[rbp-0x28]
                         mov         r14,[rbp-0x20]
                         mov         r13,[rbp-0x18]
@@ -660,6 +676,7 @@ print_stn               enter       0x30,0
                         mov         rbx,[rbp-0x08]
                         leave
                         ret
+
 
 prtsyntree              enter       0,0
 
@@ -696,6 +713,7 @@ stn_prt_fmt             db          '%-*.*s',0
 stn_prt_fmt2            db          '%s,%s,%s',10,0
 stn_prt_fmt3            db          '%02x ',0
 stn_prt_lf              db          10,0
+stn_prt_null            db          '(null)',10,0
 stn_shf_fmt             db          0
 
                         align       8,db 0
