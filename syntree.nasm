@@ -51,6 +51,9 @@ stn_from_impt           enter       0x20,0
                         jz          .noresult
 
                         ; print node information
+                        cmp         qword [stn_debug],0
+                        je          .nodebug
+
                         lea         rdi,[pt_dbg_fmt]
                         movzx       rax,byte [rbx+impn_nodeClass]
                         mov         rsi,[nc_texts+rax*8]
@@ -62,7 +65,7 @@ stn_from_impt           enter       0x20,0
                         call        qword [pb_putfmt]
 
                         ; check node class
-                        mov         al,[rbx+impn_nodeClass]
+.nodebug                mov         al,[rbx+impn_nodeClass]
                         cmp         al,NC_PRODUCTION
                         je          .mandatory
                         cmp         al,NC_MANDATORY
@@ -185,6 +188,7 @@ stn_from_impt           enter       0x20,0
                         shl         rdi,3   ; *8
                         call        xalloc
                         mov         [r13+stn_args],rax
+                        xor         r12,r12
 
                         ; match all of the branches, storing the results
 .optnextbr              cmp         r12w,word [rbx+impn_numBranches]
@@ -418,8 +422,26 @@ free_stn                enter       0x10,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
                         mov         rbx,rdi     ; rbx - syntreenode pointer
+                        inc         qword [stn_calldepth]
 
-                        mov         rax,[rbx+stn_args]
+                        test        rbx,rbx
+                        jz          .nullptr
+
+                        ; print node information
+                        cmp         qword [stn_debug],0
+                        je          .nodebug
+                        lea         rdi,[pt_dbg_fmt2]
+                        mov         r12,[rbx+stn_match]
+                        movzx       rax,byte [r12+impn_nodeClass]
+                        mov         rsi,[nc_texts+rax*8]
+                        movzx       rax,byte [r12+impn_termType]
+                        mov         rdx,[tt_texts+rax*8]
+                        movzx       rax,word [r12+impn_nodeType]
+                        mov         rcx,[nt_texts+rax*8]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+.nodebug                mov         rax,[rbx+stn_args]
                         test        rax,rax
                         jz          .noargs
 
@@ -431,7 +453,7 @@ free_stn                enter       0x10,0
                         mov         rdi,[rax+r12*8]
                         test        rdi,rdi
                         jz          .prevbranch
-                        mov         qword [rax+r12*8],0
+                        ; mov         qword [rax+r12*8],0
 
                         ; free branch
                         call        free_stn
@@ -439,13 +461,14 @@ free_stn                enter       0x10,0
 
                         ; free args vector
 .endargs                mov         rdi,[rbx+stn_args]
-                        mov         qword [rbx+stn_args],0
+                        ; mov         qword [rbx+stn_args],0
                         call        xfree
 
                         ; free node object
 .noargs                 mov         rdi,rbx
                         call        xfree
 
+.nullptr                dec         qword [stn_calldepth]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
@@ -458,6 +481,7 @@ delsyntree              enter       0,0
                         jz          .end
 
                         mov         rdi,rax
+                        mov         qword [stn_calldepth],0
                         call        free_stn
 
                         xor         rax,rax
@@ -468,17 +492,20 @@ delsyntree              enter       0,0
 
                         section     .data
 
-                        global      syntree
+                        global      syntree,stn_debug
 
 syntree                 dq          0
+stn_debug               dq          0
 
                         section     .bss
 
 stn_tokenptr            resq        1
 stn_tokenend            resq        1
 stn_tokenparam          resq        1
+stn_calldepth           resq        1
 
                         section     .rodata
 
-pt_dbg_fmt              db          '%s,%s,%s',10,0
+pt_dbg_fmt              db          'crt %s,%s,%s',10,0
+pt_dbg_fmt2             db          'del %s,%s,%s',10,0
                         align       8,db 0

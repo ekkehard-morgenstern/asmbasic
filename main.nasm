@@ -38,7 +38,7 @@ LBUF_SIZE               equ         8192
                         extern      tokenize,detokenize,tok_dumplinebuf
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
-                        extern      tokenpad,tokenpadptr
+                        extern      tokenpad,tokenpadptr,stn_debug
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -212,7 +212,15 @@ getargs                 enter       0x20,0
                         mov         qword [dumppt],1
                         jmp         .argloop
 
-.notdumppt              mov         rdi,[stderr]
+.notdumppt              mov         rdi,r14
+                        lea         rsi,[stndebugoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .notstndebug
+                        mov         qword [stn_debug],1
+                        jmp         .argloop
+
+.notstndebug            mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -300,7 +308,6 @@ main_loop               enter       0,0
                         ; tokenize line buffer
                         lea         rdi,[lbuf]
                         mov         rsi,rax
-                        mov         qword [testtok],1  ; !!TEST!!
                         call        tokenize
 
                         ; tokenizer failure: this cannot realistically occur,
@@ -361,6 +368,7 @@ cursesoption            db          'curses',0
 coption                 db          'c',0
 testtokoption           db          'testtok',0
 dumpptoption            db          'dumppt',0
+stndebugoption          db          'stndebug',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
@@ -404,5 +412,7 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          '  --testtok            test tokenizer',10
                         db          '  --dumppt             dump parsing tree'
                         db          10
+                        db          '  --stndebug           syntax tree node '
+                        db          'debugging (crt/del)',10
                         db          0
                         align       8,db 0

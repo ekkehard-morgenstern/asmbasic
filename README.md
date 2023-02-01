@@ -22,13 +22,15 @@ To use AsmBASIC, either run it on the command line with "./asmbasic" or create a
 
 When run from the command line, you can specify the "--help" option to see its command line parameters, as in "./asmbasic --help".
 
-In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer, outputting some debug info.
+In Standard I/O terminal emulation (switched on with the "--stdio" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer.
 
-In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer, outputting some debug info.
+In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer.
 
 To get the previous behavior, (also) specify the "--testtok" option, which will instead enter tokenizer testing mode and outputting the tokenized form as well as the detokenized form of the input lines.
 
 To print the parsing tree, specify the "--dumppt" option, which will output it to standard output and then exit the program. Since parts of it are naturally self-recursive, branches that have already been printed are output as "...".
+
+To debug the syntax analyzer (tree node creation/deletion), specify the "--stndebug" option, which logs node creation/deletion to the console.
 
 ## Limitations
 
