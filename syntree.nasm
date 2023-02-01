@@ -491,9 +491,12 @@ delsyntree              enter       0,0
                         ret
 
                         ; rdi - tree node
-print_stn               enter       0x20,0
+print_stn               enter       0x30,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
+                        mov         [rbp-0x18],r13
+                        mov         [rbp-0x20],r14
+                        mov         [rbp-0x28],r15
                         mov         rbx,rdi
                         inc         qword [stn_calldepth]
 
@@ -528,7 +531,93 @@ print_stn               enter       0x20,0
                         cmp         byte [r12+impn_termType],TT_BINARY
                         jne         .notterminal
 
-                        ; TODO: print terminal info
+                        ; print terminal info
+                        ;   r13 - impn_text (requirement info)
+                        ;   r14 - stn_token (matching bytes)
+                        ;   r15 - length of output bytes
+                        mov         r13,[r12+impn_text]
+                        mov         r14,[rbx+stn_token]
+                        xor         r15,r15
+
+                        ; check for TB_DATA
+                        mov         dl,[r13]
+                        cmp         dl,TB_DATA
+                        jne         .notdata
+
+                        ; literal match
+                        movzx       r15,byte [r13+1]
+                        jmp         .outputhex
+
+                        ; get field type, convert to length
+.notdata                mov         cl,dl
+                        and         cl,TBF_PARAM-1
+                        sub         cl,TB_BYTE
+                        mov         rax,1
+                        shl         rax,cl
+                        mov         rcx,rax
+
+                        ; test for TBF_PARAM
+                        test        dl,TBF_PARAM
+                        jnz         .param
+
+                        ; nope: single item match
+                        mov         r15,rcx
+                        jmp         .outputhex
+
+                        ; test for TBF_WRITE
+.param                  test        dl,TBF_WRITE
+                        jnz         .paramwrite
+
+                        ; get previously saved value:
+                        mov         rax,[stn_tokenparam]
+                        mul         rcx
+
+                        ; result is the length
+                        mov         r15,rax
+                        jmp         .outputhex
+
+                        ; read length
+.paramwrite             xor         rax,rax
+                        mov         r15,rcx ; also for output
+.getnextbyte            shl         rax,8
+                        mov         al,[r14]
+                        inc         r14
+                        loop        .getnextbyte
+
+                        ; save it
+                        mov         [stn_tokenparam],rax
+
+                        ; reset pointer for output
+                        mov         r14,[rbx+stn_token]
+
+                        ; output
+                        ; jmp       .outputhex
+
+.outputhex              test        r15,r15
+                        jz          .notterminal
+
+                        ; first output indent
+                        lea         rdi,[stn_prt_fmt]
+                        mov         rsi,[stn_calldepth]
+                        shl         rsi,1   ; *2
+                        mov         rdx,rsi
+                        lea         rcx,[stn_shf_fmt]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+
+                        ; output individual bytes
+.prtbyte                lea         rdi,[stn_prt_fmt3]
+                        movzx       rsi,byte [r14]
+                        inc         r14
+                        xor         al,al
+                        call        qword [pb_putfmt]
+                        dec         r15
+                        jnz         .prtbyte
+
+                        ; done output lf
+                        lea         rdi,[stn_prt_lf]
+                        xor         al,al
+                        call        qword [pb_putfmt]
 
                         ; output branches
 .notterminal            xor         r12,r12
@@ -544,6 +633,9 @@ print_stn               enter       0x20,0
 
 .endbr:
 .iszero                 dec         qword [stn_calldepth]
+                        mov         r15,[rbp-0x28]
+                        mov         r14,[rbp-0x20]
+                        mov         r13,[rbp-0x18]
                         mov         r12,[rbp-0x10]
                         mov         rbx,[rbp-0x08]
                         leave
@@ -582,6 +674,8 @@ pt_dbg_fmt              db          'crt %s,%s,%s',10,0
 pt_dbg_fmt2             db          'del %s,%s,%s',10,0
 stn_prt_fmt             db          '%-*.*s',0
 stn_prt_fmt2            db          '%s,%s,%s',10,0
+stn_prt_fmt3            db          '%02x ',0
+stn_prt_lf              db          10,0
 stn_shf_fmt             db          0
 
                         align       8,db 0
