@@ -126,10 +126,19 @@ stn_from_impt           enter       0x20,0
                         mov         rdi,[rdi]
                         mov         rsi,[rdi+stn_match]
                         cmp         word [rsi+impn_nodeType],_NT_GENERIC
-                        jne         .manmatch2
+                        jne         .notgeneric
+
+                        ; a NC_TERMINAL? if so, take its match and token
+                        ; pointers too
+                        cmp         byte [rsi+impn_nodeClass],NC_TERMINAL
+                        jne         .nonterminal
+
+                        mov         [r13+stn_match],rsi
+                        mov         rsi,[rdi+stn_token]
+                        mov         [r13+stn_token],rsi
 
                         ; take its branch info
-                        mov         rsi,[rdi+stn_nargs]
+.nonterminal            mov         rsi,[rdi+stn_nargs]
                         mov         [r13+stn_nargs],rsi
                         mov         rsi,[rdi+stn_args]
                         mov         [r13+stn_args],rsi
@@ -145,6 +154,17 @@ stn_from_impt           enter       0x20,0
                         ; done
 .manmatch2              mov         rax,r13
                         jmp         .withresult
+
+                        ; is it another production node?
+.notgeneric             cmp         byte [rsi+impn_nodeClass],NC_PRODUCTION
+                        jne         .manmatch2
+
+                        ; yes? then we don't need the current one
+                        xchg        r13,rdi
+                        mov         qword [rdi+stn_nargs],0
+                        mov         qword [rdi+stn_args],0
+                        call        free_stn
+                        jmp         .manmatch2
 
                         ; pretend the current branch index is the number of
                         ; branches in this node
