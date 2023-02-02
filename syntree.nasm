@@ -221,7 +221,22 @@ stn_from_impt           enter       0x20,0
                         inc         r12
                         jmp         .optnextbr
 
-.optdone                mov         rax,r13
+                        ; remove trailing null branches
+.optdone                test        r12,r12
+                        jz          .optdoneempty
+                        mov         rdx,[r13+stn_args]
+                        mov         rax,[rdx+r12*8-8]
+                        test        rax,rax
+                        jnz         .optdonedone
+                        dec         r12
+                        mov         [r13+stn_nargs],r12
+                        jmp         .optdone
+
+.optdoneempty           mov         rdi,[r13+stn_args]
+                        mov         qword [r13+stn_args],0
+                        call        xfree
+
+.optdonedone            mov         rax,r13
                         jmp         .withresult
 
                         ; optional repetitive never fails. one branch can be
@@ -252,7 +267,7 @@ stn_from_impt           enter       0x20,0
                         test        rax,rax
                         jnz         .optrepgotmatch
                         inc         r12
-                        jmp         .optnextbr
+                        jmp         .optrepnextbr
 
                         ; got a match: resize branch array and add branch
 .optrepgotmatch         mov         r12,rax ; r12 - branch to be added
