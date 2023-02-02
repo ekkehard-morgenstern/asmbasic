@@ -62,6 +62,12 @@ parsenodename.nasm: mainsyntax.inc
 main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
 	./build_main_ebnf.pl
 
+8x12font1.inc: 8x12font1.txt extract_font.pl
+	./extract_font.pl
+
+tokendef.inc: tokenlist.txt extract_tl.pl
+	./extract_tl.pl
+
 main.o: 	main.nasm
 
 osversion.o: 	osversion.nasm
@@ -88,11 +94,11 @@ sdlconkbd.o: sdlconkbd.nasm
 
 sdlconshr.o: sdlconshr.nasm sdlconshr.inc
 
-tokens.o: 	tokens.nasm
+tokens.o: 	tokens.nasm tokendef.inc
 
 toknum.o: 	toknum.nasm
 
-8x12font.o: 8x12font.nasm
+8x12font1.o: 8x12font1.nasm 8x12font1.inc
 
 mainsyntax.o: mainsyntax.nasm mainsyntax.inc
 
