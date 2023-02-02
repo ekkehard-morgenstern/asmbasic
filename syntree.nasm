@@ -35,6 +35,42 @@
 
                         global      crtsyntree,delsyntree,prtsyntree
 
+
+                        ; remove trailing null branches
+                        ; rdi - syntax tree node
+                        ; output:
+                        ; rax - number of branches removed
+
+stn_remove_null         enter       0x20,0
+                        mov         [rbp-0x08],r12
+                        mov         [rbp-0x10],r13
+                        mov         r13,rdi
+                        mov         r12,[r13+stn_nargs]
+                        mov         [rbp-0x18],r12  ; backup
+
+                        ; remove trailing null branches
+.nextbr                 test        r12,r12
+                        jz          .doneempty
+                        mov         rdx,[r13+stn_args]
+                        mov         rax,[rdx+r12*8-8]
+                        test        rax,rax
+                        jnz         .donedone
+                        dec         r12
+                        mov         [r13+stn_nargs],r12
+                        jmp         .nextbr
+
+.doneempty              mov         rdi,[r13+stn_args]
+                        mov         qword [r13+stn_args],0
+                        call        xfree
+
+.donedone               mov         rax,[rbp-0x18]
+                        sub         rax,r12
+
+                        mov         r13,[rbp-0x10]
+                        mov         r12,[rbp-0x08]
+                        leave
+                        ret
+
                         ; rdi - in-memory parse tree node
 stn_from_impt           enter       0x20,0
                         mov         [rbp-0x10],rbx
@@ -119,7 +155,7 @@ stn_from_impt           enter       0x20,0
                         jne         .manmatch2
 
                         cmp         r12,1   ; single branch?
-                        jne         .manmatch2
+                        jne         .mannotsinglebr
 
                         ; child node with _NT_GENERIC?
                         mov         rdi,[r13+stn_args]
@@ -151,6 +187,9 @@ stn_from_impt           enter       0x20,0
                         ; free child node
                         call        free_stn
 
+                        ; do the checks for multiple branches
+                        jmp         .mannotsinglebr
+
                         ; done
 .manmatch2              mov         rax,r13
                         jmp         .withresult
@@ -164,6 +203,40 @@ stn_from_impt           enter       0x20,0
                         mov         qword [rdi+stn_nargs],0
                         mov         qword [rdi+stn_args],0
                         call        free_stn
+                        jmp         .manmatch2
+
+                        ; NC_PRODUCTION with more than one branch
+                        ; remove all branches with empty OPTIONAL or OPTIONAL
+                        ; REPETITIVE nodes.
+.mannotsinglebr         xor         r12,r12
+.mnsb_next              cmp         r12,[r13+stn_nargs]
+                        jae         .mnsb_done
+                        mov         rdx,[r13+stn_args]
+                        mov         rdi,[rdx+r12*8]
+                        cmp         qword [rdi+stn_nargs],0
+                        jne         .mnsb_iter
+                        mov         rsi,[rdi+stn_match]
+                        mov         al,[rsi+impn_nodeClass]
+                        cmp         al,NC_OPTIONAL
+                        je          .mnsb_opt
+                        cmp         al,NC_OPTIONAL_REPETITIVE
+                        je          .mnsb_opt
+                        ; not one of them
+.mnsb_iter              inc         r12
+                        jmp         .mnsb_next
+
+.mnsb_opt               mov         qword [rdx+r12*8],0
+                        call        free_stn
+                        jmp         .mnsb_iter
+
+                        ; now remove trailing null branches
+.mnsb_done              mov         rdi,r13
+                        call        stn_remove_null
+                        mov         r12,[r13+stn_nargs]
+                        test        rax,rax
+                        jnz         .manmatch       ; changed: redo checks
+
+                        ; no change: finish
                         jmp         .manmatch2
 
                         ; pretend the current branch index is the number of
@@ -222,21 +295,11 @@ stn_from_impt           enter       0x20,0
                         jmp         .optnextbr
 
                         ; remove trailing null branches
-.optdone                test        r12,r12
-                        jz          .optdoneempty
-                        mov         rdx,[r13+stn_args]
-                        mov         rax,[rdx+r12*8-8]
-                        test        rax,rax
-                        jnz         .optdonedone
-                        dec         r12
-                        mov         [r13+stn_nargs],r12
-                        jmp         .optdone
+.optdone                mov         rdi,r13
+                        call        stn_remove_null
 
-.optdoneempty           mov         rdi,[r13+stn_args]
-                        mov         qword [r13+stn_args],0
-                        call        xfree
-
-.optdonedone            mov         rax,r13
+                        ; finish
+                        mov         rax,r13
                         jmp         .withresult
 
                         ; optional repetitive never fails. one branch can be
