@@ -374,7 +374,9 @@ stndebugoption          db          'stndebug',0
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
 
-greeting                db          'AsmBASIC v0.0.0',10,10,0
+greeting                db          'AsmBASIC '
+                        %include    "verstr.inc"
+                        db          10,10,0
 readyprompt             db          'Ready.',10,0
 tokenfail               db          '? Tokenizer failure',10,0
 syntaxerror             db          '? Syntax error',10,0

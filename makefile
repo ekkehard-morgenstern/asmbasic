@@ -68,7 +68,10 @@ main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
 tokendef.inc: tokenlist.txt extract_tl.pl
 	./extract_tl.pl
 
-main.o: 	main.nasm
+verstr.inc:
+	./tagtoverstr.pl
+
+main.o: 	main.nasm verstr.inc
 
 osversion.o: 	osversion.nasm
 
