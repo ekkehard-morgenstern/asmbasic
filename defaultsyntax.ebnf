@@ -179,7 +179,7 @@ if-jump := ( 'THEN' [ gosub-or-goto ] | gosub-or-goto ) jump-target
 
 then-line := 'THEN' any-mode-stmt-list .
 
-if-stmt := ( 'IF' | 'UNLESS' ) cond-expr [ if-jump | then-line ] |
+if-stmt := ( 'IF' | 'UNLESS' ) cond-expr [ then-line | if-jump ] |
            'ELSE' ( 'IF' | 'UNLESS' ) cond-expr |
            'ELSE' [ any-mode-stmt-list ] |
            'END' ( 'IF' | 'UNLESS' ) .
