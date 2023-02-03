@@ -187,7 +187,10 @@ if-stmt := ( 'IF' | 'UNLESS' ) cond-expr [ then-line | if-jump ] |
 tab-stmt := ( 'HTAB' | 'VTAB' ) num-expr .
 ink-stmt := 'INK' num-expr [ ',' num-expr ] .
 input-stmt := [ 'LINE' ] 'INPUT' [ ( chan | str-expr ) ',' ] var-ref-list .
-assign-stmt := [ 'LET' ] var-ref '=' expr .
+num-assign := num-var-ref '=' num-expr .
+str-assign := str-var-ref '=' str-expr .
+assign-expr := num-assign | str-assign .
+assign-stmt := [ 'LET' ] assign-expr .
 open-stmt := 'OPEN' str-expr [ 'FOR' ( 'INPUT' [ 'AND' 'OUTPUT' ] |
              'OUTPUT' ) ] 'AS' chan |
              'OPEN' chan ',' str-expr .

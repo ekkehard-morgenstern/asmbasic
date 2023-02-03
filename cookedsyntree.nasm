@@ -102,7 +102,7 @@ crt_csn                 enter       0x20,0
                         cmp         al,S_IDENT
                         je          .ident
                         ; neither
-                        jmp         .discard
+                        jmp         .subbranches
 
                         ; number starts with 01 BASE
 .number                 mov         [r12+csn_type],al
