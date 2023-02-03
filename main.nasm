@@ -344,6 +344,7 @@ main_loop               enter       0,0
                         call        prtsyntree
 
 .nostnprint             call        cooksyntree
+                        call        printcookedsyntree
 
 
                         call        delcookedsyntree
