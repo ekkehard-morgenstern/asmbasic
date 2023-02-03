@@ -39,6 +39,8 @@ LBUF_SIZE               equ         8192
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
                         extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
+                        extern      cooksyntree,delcookedsyntree
+                        extern      printcookedsyntree
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -91,6 +93,7 @@ getargs                 enter       0x20,0
                         mov         [consolemode],rax
                         mov         [filename],rax
                         mov         [testtok],rax
+                        mov         [stnprint],rax
 
 .argloop                test        r12,r12
                         jz          .endargs
@@ -220,7 +223,15 @@ getargs                 enter       0x20,0
                         mov         qword [stn_debug],1
                         jmp         .argloop
 
-.notstndebug            mov         rdi,[stderr]
+.notstndebug            mov         rdi,r14
+                        lea         rsi,[stnprintoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .notstnprint
+                        mov         qword [stnprint],1
+                        jmp         .argloop
+
+.notstnprint            mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -328,7 +339,14 @@ main_loop               enter       0,0
                         test        rax,rax
                         jz          .synerr
 
+                        cmp         qword [stnprint],0
+                        je          .nostnprint
                         call        prtsyntree
+
+.nostnprint             call        cooksyntree
+
+
+                        call        delcookedsyntree
                         call        delsyntree
 
                         jmp         .lineloop
@@ -356,6 +374,7 @@ consolemode             resq        1
 filename                resq        1
 testtok                 resq        1
 dumppt                  resq        1
+stnprint                resq        1
 
                         section     .rodata
 
@@ -370,6 +389,7 @@ coption                 db          'c',0
 testtokoption           db          'testtok',0
 dumpptoption            db          'dumppt',0
 stndebugoption          db          'stndebug',0
+stnprintoption          db          'stnprint',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
@@ -412,10 +432,14 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          '  --stdio -s           standard I/O',10
                         db          '  --curses -c          ncurses (not impl)'
                         db          10
+                        db          'Debugging Options:',10
                         db          '  --testtok            test tokenizer',10
                         db          '  --dumppt             dump parsing tree'
                         db          10
                         db          '  --stndebug           syntax tree node '
                         db          'debugging (crt/del)',10
+                        db          '  --stnprint           syntax tree node '
+                        db          'printing',10
                         db          0
+
                         align       8,db 0

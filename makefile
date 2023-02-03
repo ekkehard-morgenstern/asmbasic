@@ -43,7 +43,7 @@ clean:
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
 		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o parsetree.o \
-		parsenodename.o syntree.o
+		parsenodename.o syntree.o cookedsyntree.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -70,6 +70,9 @@ tokendef.inc: tokenlist.txt extract_tl.pl
 
 verstr.inc:
 	./tagtoverstr.pl
+
+csntext.inc: cookedsyntree.inc keywords.inc tokendef.inc extract_csntext.pl
+	./extract_csntext.pl >csntext.inc
 
 main.o: 	main.nasm verstr.inc
 
@@ -110,3 +113,6 @@ parsetree.o: parsetree.nasm parsetree.inc mainsyntax.inc
 parsenodename.o: parsenodename.nasm
 
 syntree.o: syntree.nasm syntree.inc parsetree.inc mainsyntax.inc
+
+cookedsyntree.o: cookedsyntree.inc csntext.inc syntree.inc \
+				 parsetree.inc mainsyntax.inc
