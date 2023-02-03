@@ -39,6 +39,7 @@ LBUF_SIZE               equ         8192
                         extern      tokenpad,tokenpadptr,strcmp,fprintf,stderr
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
                         extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
+                        extern      stn_tokenptr,stn_tokenend,linebuf,linebuflen
                         extern      cooksyntree,delcookedsyntree
                         extern      printcookedsyntree
 
@@ -339,6 +340,11 @@ main_loop               enter       0,0
                         test        rax,rax
                         jz          .synerr
 
+                        mov         rax,[stn_tokenptr]
+                        mov         al,[rax]
+                        test        al,al
+                        jnz         .synerrx
+
                         cmp         qword [stnprint],0
                         je          .nostnprint
                         call        prtsyntree
@@ -357,6 +363,20 @@ main_loop               enter       0,0
 .synerr                 lea         rdi,[syntaxerror]
 .printerr               xor         al,al
                         call        qword [pb_putfmt]
+                        jmp         .readyloop
+
+.synerrx                mov         rdi,[stn_tokenptr]
+                        mov         rsi,[stn_tokenend]
+                        sub         rsi,rdi
+                        xor         rdx,rdx
+                        call        detokenize
+                        lea         rdi,[syntaxerrorex]
+                        mov         rsi,[linebuflen]
+                        mov         rdx,rsi
+                        lea         rcx,[linebuf]
+                        xor         al,al
+                        call        qword [pb_putfmt]
+                        call        delsyntree
                         jmp         .readyloop
 
 .tokfail                lea         rdi,[tokenfail]
@@ -401,6 +421,7 @@ greeting                db          'AsmBASIC '
 readyprompt             db          'Ready.',10,0
 tokenfail               db          '? Tokenizer failure',10,0
 syntaxerror             db          '? Syntax error',10,0
+syntaxerrorex           db          '? Syntax error near <<%-*.*s>>',10,0
 
 tokenizertest           db          'AsmBASIC color test',10
                         db          'background colors 0-7: '

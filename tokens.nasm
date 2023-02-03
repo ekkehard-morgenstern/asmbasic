@@ -1445,7 +1445,7 @@ firstmapentry           dq          0
 
                         section     .bss
                         global      sourceputback,tokenpad,tokenpadptr
-
+                        global      linebuf,linebuflen
 
 g_tokenmap              resq        tokenmap_size/8
 linebuf                 resq        LINEBUF_BYTES/8

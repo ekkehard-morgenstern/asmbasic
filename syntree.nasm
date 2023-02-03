@@ -777,6 +777,7 @@ syntree                 dq          0
 stn_debug               dq          0
 
                         section     .bss
+                        global      stn_tokenptr,stn_tokenend
 
 stn_tokenptr            resq        1
 stn_tokenend            resq        1
