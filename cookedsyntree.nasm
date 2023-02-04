@@ -32,6 +32,7 @@
                         section     .text
 
                         extern      syntree,xalloc,xfree,xrealloc,pb_putfmt
+                        extern      refinecookedsyntree
                         global      cooksyntree,delcookedsyntree
                         global      printcookedsyntree
 
@@ -244,6 +245,9 @@ cooksyntree             enter       0,0
 
                         call        crt_csn
                         mov         [cookedsyntree],rax
+
+                        call        refinecookedsyntree
+
                         jmp         .end
 
 .nosyntree              xor         rax,rax
@@ -429,6 +433,7 @@ printcookedsyntree      enter       0,0
                         ret
 
                         section     .data
+                        global      cookedsyntree
 
 cookedsyntree           dq          0
 
