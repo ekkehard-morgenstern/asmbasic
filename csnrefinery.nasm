@@ -33,6 +33,26 @@
                         extern      cookedsyntree
                         global      refinecookedsyntree
 
+; GOALS:
+;   - Rearrange cooked syntax tree such that:
+;     o The line number is the first subnode of the root node
+;       (and its parent generic node is marked as S_LINENUMBER).
+;     o Statements separated by semicolon are regrouped to be
+;       children of the root node, each of their generic parent
+;       nodes are marked with S_STATEMENT.
+;     o Colon operators can be removed.
+;     o Expressions will be marked with a S_EXPRESSION parent.
+;     o They become direct children of the statement or function
+;       call / array access nodes they belong to.
+;     o Comma operators can be removed.
+;     o Nodes that became superfluous as a part of previous
+;       operations are discarded (i.e. generic nodes that
+;       became empty), and branch tables are cleaned up.
+;     o The root node is marked with S_LINE.
+;   - Future steps:
+;     o ...
+;
+
                         ; rdi - cooked syntax (sub-)tree
 refine_csn              enter       0,0
 
