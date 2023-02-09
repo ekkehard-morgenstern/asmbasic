@@ -16,6 +16,11 @@ On Debian, Ubuntu and other similar Linux distros, simply write "sudo apt instal
 
 After making sure you have those tools and libraries, type "make -B" to build the program.
 
+## On WSL
+
+Make sure you have the Linux version of "git" and "perl" installed. Use "sudo apt install git perl" (on Ubuntu/WSL) to accomplish that.
+Since file attributes are important, make sure you're on a native Linux file system before issuing the "git clone --recursive URL" command.
+
 ## Using
 
 To use AsmBASIC, either run it on the command line with "./asmbasic" or create a desktop launcher for it to run it from the desktop.
