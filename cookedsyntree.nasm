@@ -33,7 +33,7 @@
 
                         extern      syntree,xalloc,xfree,xrealloc,pb_putfmt
                         extern      refinecookedsyntree
-                        global      cooksyntree,delcookedsyntree
+                        global      cooksyntree,delcookedsyntree,del_csn
                         global      printcookedsyntree
 
                         ; create cooked syntax tree from raw syntax tree
@@ -339,10 +339,26 @@ print_csn               enter       0x20,0
                         cmp         al,S_IDENT
                         je          .ident
 
+                        cmp         al,S_LINENUMBER
+                        je          .specific
+                        cmp         al,S_STATEMENT
+                        je          .specific
+                        cmp         al,S_EXPRESSION
+                        je          .specific
+                        cmp         al,S_LINE
+                        je          .specific
+
 .generic                lea         rdi,[csn_generic_fmt]
-                        xor         al,al
+.genprt                 xor         al,al
                         call        qword [pb_putfmt]
                         jmp         .dobranches
+
+.specific               lea         rdi,[csn_specific_fmt]
+                        movzx       rax,al
+                        mov         rsi,[s_table+rax*8]
+                        test        rsi,rsi
+                        jz          .generic
+                        jmp         .genprt
 
                         ; operator/keyword; rdx must be set
 .prtopkw                lea         rdi,[csn_opkw_fmt]
@@ -443,6 +459,7 @@ csn_indent_fmt          db          '%-*.*s'
 csn_indent_spc          db          0
 csn_null_fmt            db          '(null)',10,0
 csn_generic_fmt         db          '(generic)',10,0
+csn_specific_fmt        db          '%s',10,0
 csn_bad                 db          '???',0
 csn_opkw_fmt            db          '%s,%s',10,0
 csn_num_fmt             db          '%s,base %u,"%g"',10,0

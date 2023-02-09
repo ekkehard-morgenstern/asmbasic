@@ -40,7 +40,7 @@ LBUF_SIZE               equ         8192
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
                         extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
                         extern      stn_tokenptr,stn_tokenend,linebuf,linebuflen
-                        extern      cooksyntree,delcookedsyntree
+                        extern      cooksyntree,delcookedsyntree,disable_csnref
                         extern      printcookedsyntree
 
 main                    enter       0,0
@@ -95,6 +95,7 @@ getargs                 enter       0x20,0
                         mov         [filename],rax
                         mov         [testtok],rax
                         mov         [stnprint],rax
+                        mov         qword [csnprint],1
 
 .argloop                test        r12,r12
                         jz          .endargs
@@ -232,7 +233,23 @@ getargs                 enter       0x20,0
                         mov         qword [stnprint],1
                         jmp         .argloop
 
-.notstnprint            mov         rdi,[stderr]
+.notstnprint            mov         rdi,r14
+                        lea         rsi,[csnprintoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .notcsnprint
+                        mov         qword [csnprint],1
+                        jmp         .argloop
+
+.notcsnprint            mov         rdi,r14
+                        lea         rsi,[csnrefdisoption]
+                        call        strcmp
+                        test        rax,rax
+                        jnz         .notcsnrefdis
+                        mov         qword [disable_csnref],1
+                        jmp         .argloop
+
+.notcsnrefdis           mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -350,10 +367,18 @@ main_loop               enter       0,0
                         call        prtsyntree
 
 .nostnprint             call        cooksyntree
+
+                        cmp         qword [csnprint],0
+                        je          .nocsnprint
                         call        printcookedsyntree
 
+.nocsnprint             cmp         qword [disable_csnref],0
+                        jne         .freecsn
 
-                        call        delcookedsyntree
+                        ; tbd
+                        nop
+
+.freecsn                call        delcookedsyntree
                         call        delsyntree
 
                         jmp         .lineloop
@@ -396,6 +421,7 @@ filename                resq        1
 testtok                 resq        1
 dumppt                  resq        1
 stnprint                resq        1
+csnprint                resq        1
 
                         section     .rodata
 
@@ -411,6 +437,8 @@ testtokoption           db          'testtok',0
 dumpptoption            db          'dumppt',0
 stndebugoption          db          'stndebug',0
 stnprintoption          db          'stnprint',0
+csnprintoption          db          'csnprint',0
+csnrefdisoption         db          'disable-csnref',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
@@ -462,6 +490,10 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          'debugging (crt/del)',10
                         db          '  --stnprint           syntax tree node '
                         db          'printing',10
+                        db          '  --csnprint           cooked syntax tree'
+                        db          ' printing',10
+                        db          '  --disable-csnref     disable cooked '
+                        db          'syntax tree refinery',10
                         db          0
 
                         align       8,db 0

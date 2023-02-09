@@ -32,6 +32,12 @@ To print the parsing tree, specify the "--dumppt" option, which will output it t
 
 To debug the syntax analyzer (tree node creation/deletion), specify the "--stndebug" option, which logs node creation/deletion to the console.
 
+To print the syntax tree, specify the "--stnprint" option.
+
+To print the cooked syntax tree, specify the "--csnprint" option (currently always enabled).
+
+To disable the cooked syntax tree refinery, define the "--disable-csnref" option. This also skips further processing steps (i.e. code generation and execution; will be of importance later when it's implemented).
+
 ## Limitations
 
 Some of the currently defined limits are as follows:

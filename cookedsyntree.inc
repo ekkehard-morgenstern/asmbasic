@@ -41,6 +41,10 @@ S_UNDEF                 equ         0x00
 S_NUMBER                equ         0x01
 S_OPER                  equ         0x02
 S_KEYWORD               equ         0x03
+S_LINENUMBER            equ         0xe0
+S_STATEMENT             equ         0xe1
+S_EXPRESSION            equ         0xe2
+S_LINE                  equ         0xe3
 S_IDENT                 equ         0xfe
 S_STRLIT                equ         0xff
 
