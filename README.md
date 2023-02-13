@@ -41,8 +41,6 @@ To print the syntax tree, specify the "--stnprint" option.
 
 To print the cooked syntax tree, specify the "--csnprint" option (currently always enabled).
 
-To disable the cooked syntax tree refinery, define the "--disable-csnref" option. This also skips further processing steps (i.e. code generation and execution; will be of importance later when it's implemented).
-
 ## Limitations
 
 Some of the currently defined limits are as follows:

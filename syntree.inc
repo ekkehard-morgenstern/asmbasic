@@ -28,9 +28,14 @@
 
                         %include    "parsetree.inc"
 
+STNF_MASK               equ         0x03
+STNF_STMT               equ         0x01
+STNF_EXPR               equ         0x02
+
                         struc      syntreenode
                             stn_match:  resq    1 ; pointer to parse tree node
                             stn_token:  resq    1 ; pointer to token
                             stn_nargs:  resq    1 ; number of arguments
                             stn_args:   resq    1 ; table of argument pointers
+                            stn_flags:  resq    1 ; syntax tree node flags
                         endstruc

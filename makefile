@@ -43,7 +43,7 @@ clean:
 MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 		stdconsole.o sdlconsrv.o sdlconcli.o sdlconcev.o sdlconkbd.o \
 		sdlconshr.o tokens.o toknum.o 8x12font1.o mainsyntax.o parsetree.o \
-		parsenodename.o syntree.o cookedsyntree.o csnrefinery.o
+		parsenodename.o syntree.o stnflgtbl.o cookedsyntree.o
 
 # NOTE: pkg-config --cflags --libs sdl2
 
@@ -56,8 +56,11 @@ ebnfcomp/ebnfcomp:
 mainsyntax.nasm: main.ebnf
 	ebnfcomp/ebnfcomp --asm mainsyntax <main.ebnf
 
-parsenodename.nasm: mainsyntax.inc
+parsenodename.nasm: mainsyntax.inc extract_nodetext.pl
 	./extract_nodetext.pl >parsenodename.nasm
+
+stnflgtbl.nasm: mainsyntax.inc extract_stnflgtbl.pl
+	./extract_stnflgtbl.pl
 
 main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
 	./build_main_ebnf.pl
@@ -114,8 +117,7 @@ parsenodename.o: parsenodename.nasm
 
 syntree.o: syntree.nasm syntree.inc parsetree.inc mainsyntax.inc
 
+stnflgtbl.o: stnflgtbl.nasm syntree.inc
+
 cookedsyntree.o: cookedsyntree.nasm cookedsyntree.inc csntext.inc \
 				 syntree.inc parsetree.inc mainsyntax.inc
-
-csnrefinery.o: csnrefinery.nasm cookedsyntree.inc csntext.inc \
-			   syntree.inc parsetree.inc mainsyntax.inc

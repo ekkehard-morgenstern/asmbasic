@@ -40,7 +40,7 @@ LBUF_SIZE               equ         8192
                         extern      exit,pb_putfmt,crtsyntree,delsyntree
                         extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
                         extern      stn_tokenptr,stn_tokenend,linebuf,linebuflen
-                        extern      cooksyntree,delcookedsyntree,disable_csnref
+                        extern      cooksyntree,delcookedsyntree
                         extern      printcookedsyntree
 
 main                    enter       0,0
@@ -241,15 +241,7 @@ getargs                 enter       0x20,0
                         mov         qword [csnprint],1
                         jmp         .argloop
 
-.notcsnprint            mov         rdi,r14
-                        lea         rsi,[csnrefdisoption]
-                        call        strcmp
-                        test        rax,rax
-                        jnz         .notcsnrefdis
-                        mov         qword [disable_csnref],1
-                        jmp         .argloop
-
-.notcsnrefdis           mov         rdi,[stderr]
+.notcsnprint            mov         rdi,[stderr]
                         lea         rsi,[badoption]
                         mov         rdx,r14
                         xor         al,al
@@ -372,9 +364,7 @@ main_loop               enter       0,0
                         je          .nocsnprint
                         call        printcookedsyntree
 
-.nocsnprint             cmp         qword [disable_csnref],0
-                        jne         .freecsn
-
+.nocsnprint:
                         ; tbd
                         nop
 
@@ -438,7 +428,6 @@ dumpptoption            db          'dumppt',0
 stndebugoption          db          'stndebug',0
 stnprintoption          db          'stnprint',0
 csnprintoption          db          'csnprint',0
-csnrefdisoption         db          'disable-csnref',0
 
 badoption               db          '? Bad option "%s" ignored',10,0
 morethanonefile         db          '? Extra filename ignored: %s',10,0
@@ -492,8 +481,6 @@ helptext                db          'Usage: %s [options] [file]',10
                         db          'printing',10
                         db          '  --csnprint           cooked syntax tree'
                         db          ' printing',10
-                        db          '  --disable-csnref     disable cooked '
-                        db          'syntax tree refinery',10
                         db          0
 
                         align       8,db 0

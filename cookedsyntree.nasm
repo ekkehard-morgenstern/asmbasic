@@ -32,7 +32,6 @@
                         section     .text
 
                         extern      syntree,xalloc,xfree,xrealloc,pb_putfmt
-                        extern      refinecookedsyntree
                         global      cooksyntree,delcookedsyntree,del_csn
                         global      printcookedsyntree
 
@@ -83,11 +82,11 @@ crt_csn                 enter       0x20,0
                         cld
 .testbr                 lodsq
                         test        rax,rax
-                        jz          .subbranches
+                        jz          .checkflags
                         mov         rdx,[rax+stn_match]
                         mov         r8b,[rdx+impn_nodeClass]
                         cmp         r8b,NC_TERMINAL
-                        jne         .subbranches  ; only need branches ->
+                        jne         .checkflags
                         loop        .testbr
 
                         ; they are all NC_TERMINALs
@@ -103,6 +102,25 @@ crt_csn                 enter       0x20,0
                         cmp         al,S_IDENT
                         je          .ident
                         ; neither
+                        jmp         .subbranches
+
+                        ; non-terminal: check flags
+.checkflags             mov         rax,[rbx+stn_flags]
+                        cmp         rax,STNF_EXPR
+                        je          .expr
+                        cmp         rax,STNF_STMT
+                        je          .stmt
+                        ; neither
+                        jmp         .subbranches
+
+                        ; a node marked with STNF_EXPR:
+                        ; make it an S_EXPRESSION node
+.expr                   mov         byte [r12+csn_type],S_EXPRESSION
+                        jmp         .subbranches
+
+                        ; a node marked with STNF_STMT:
+                        ; make it an S_STATEMENT node
+.stmt                   mov         byte [r12+csn_type],S_STATEMENT
                         jmp         .subbranches
 
                         ; number starts with 01 BASE
@@ -206,15 +224,32 @@ crt_csn                 enter       0x20,0
                         cmp         r14,1
                         jne         .finish
                         cmp         byte [r12+csn_type],0
-                        jne         .finish
+                        jne         .checkswap
 
                         ; if this is a generic node with one sub branch,
                         ; return the child node instead
                         mov         rsi,[r12+csn_args]
                         mov         rdi,[rsi]
-                        mov         qword [rsi],0
+.doswap                 mov         qword [rsi],0
                         xchg        rdi,r12
                         call        del_csn
+                        jmp         .finish
+
+                        ; if it is a statement or expression node with an
+                        ; anonymous subbranch, allow the swap to happen but
+                        ; keep the statement or expression type.
+.checkswap              mov         al,[r12+csn_type]
+                        cmp         al,S_EXPRESSION
+                        je          .checkswap2
+                        cmp         al,S_STATEMENT
+                        je          .checkswap2
+                        jmp         .finish
+.checkswap2             mov         rsi,[r12+csn_args]
+                        mov         rdi,[rsi]
+                        cmp         byte [rdi+csn_type],S_UNDEF
+                        jne         .finish
+                        mov         [rdi+csn_type],al
+                        jmp         .doswap
 
 .finish                 mov         rax,r12
 
@@ -245,8 +280,6 @@ cooksyntree             enter       0,0
 
                         call        crt_csn
                         mov         [cookedsyntree],rax
-
-                        call        refinecookedsyntree
 
                         jmp         .end
 

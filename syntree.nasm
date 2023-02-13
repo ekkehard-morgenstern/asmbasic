@@ -32,6 +32,7 @@
 
                         extern      parsetree,xfree,xalloc,xrealloc
                         extern      pb_putfmt,nc_texts,tt_texts,nt_texts
+                        extern      stnflgtbl
 
                         global      crtsyntree,delsyntree,prtsyntree
 
@@ -128,6 +129,7 @@ stn_from_impt           enter       0x20,0
                         mov         r13,rax
                         mov         [r13+stn_match],rbx
                         mov         qword [r13+stn_token],0
+                        mov         qword [r13+stn_flags],0
                         movzx       rax,word [rbx+impn_numBranches]
                         mov         [r13+stn_nargs],rax
                         mov         rdi,rax
@@ -275,6 +277,7 @@ stn_from_impt           enter       0x20,0
                         mov         r13,rax
                         mov         [r13+stn_match],rbx
                         mov         qword [r13+stn_token],0
+                        mov         qword [r13+stn_flags],0
                         movzx       rax,word [rbx+impn_numBranches]
                         mov         [r13+stn_nargs],rax
                         mov         rdi,rax
@@ -319,6 +322,7 @@ stn_from_impt           enter       0x20,0
                         mov         qword [r13+stn_token],0
                         mov         qword [r13+stn_nargs],0
                         mov         qword [r13+stn_args],0
+                        mov         qword [r13+stn_flags],0
 
                         ; iterate over branches to find a match
 .optrep                 xor         r12,r12     ; branch index
@@ -422,6 +426,7 @@ stn_from_impt           enter       0x20,0
                         mov         [r13+stn_token],r12
                         mov         qword [r13+stn_nargs],0
                         mov         qword [r13+stn_args],0
+                        mov         qword [r13+stn_flags],0
 
                         ; done
                         mov         rax,r13
@@ -512,6 +517,10 @@ crtsyntree              enter       0x10,0
                         call        stn_from_impt
                         mov         [syntree],rax
 
+                        mov         rdi,rax
+                        call        setflgs_stn
+                        mov         rax,[syntree]
+
                         leave
                         ret
 
@@ -589,6 +598,48 @@ delsyntree              enter       0,0
                         ret
 
                         ; rdi - tree node
+setflgs_stn             enter       0x10,0
+                        mov         [rbp-0x08],rbx
+                        mov         [rbp-0x10],r12
+                        mov         rbx,rdi
+
+                        test        rbx,rbx
+                        jz          .end
+
+                        ; examine attached parse tree node
+                        mov         rsi,[rbx+stn_match]
+                        test        rsi,rsi
+                        jz          .recurse
+
+                        movzx       rax,word [rsi+impn_nodeType]
+                        cmp         rax,_NT_GENERIC
+                        je          .recurse
+
+                        ; translate node type into flags and store them
+                        movzx       rax,byte [stnflgtbl+rax]
+                        mov         [rbx+stn_flags],rax
+
+                        ; recurse into branches
+.recurse                xor         r12,r12
+.nextbr                 cmp         r12,[rbx+stn_nargs]
+                        jae         .end
+                        mov         rdi,[rbx+stn_args]
+                        test        rdi,rdi
+                        jz          .end
+                        mov         rdi,[rdi+r12*8]
+                        test        rdi,rdi
+                        jz          .iterbr
+                        call        setflgs_stn
+.iterbr                 inc         r12
+                        jmp         .nextbr
+
+.end                    mov         r12,[rbp-0x10]
+                        mov         rbx,[rbp-0x08]
+                        leave
+                        ret
+
+
+                        ; rdi - tree node
 print_stn               enter       0x30,0
                         mov         [rbp-0x08],rbx
                         mov         [rbp-0x10],r12
@@ -620,6 +671,8 @@ print_stn               enter       0x30,0
                         mov         rdx,[tt_texts+rax*8]
                         movzx       rax,word [r12+impn_nodeType]
                         mov         rcx,[nt_texts+rax*8]
+                        mov         rax,[rbx+stn_flags]
+                        mov         r8,[stn_flg_texts+rax*8]
                         xor         al,al
                         call        qword [pb_putfmt]
 
@@ -789,10 +842,15 @@ stn_calldepth           resq        1
 pt_dbg_fmt              db          'crt %s,%s,%s',10,0
 pt_dbg_fmt2             db          'del %s,%s,%s',10,0
 stn_prt_fmt             db          '%-*.*s',0
-stn_prt_fmt2            db          '%s,%s,%s',10,0
+stn_prt_fmt2            db          '%s,%s,%s,%s',10,0
 stn_prt_fmt3            db          '%02x ',0
 stn_prt_lf              db          10,0
 stn_prt_null            db          '(null)',10,0
 stn_shf_fmt             db          0
+stn_flg_0               db          '0',0
+stn_flg_stmt            db          'STNF_STMT',0
+stn_flg_expr            db          'STNF_EXPR',0
 
                         align       8,db 0
+
+stn_flg_texts           dq          stn_flg_0,stn_flg_stmt,stn_flg_expr
