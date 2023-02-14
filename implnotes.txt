@@ -93,3 +93,9 @@ Syntax Analysis Process
 - Some optimizations are applied to reduce the overall number of result nodes in
   the tree. The goal here is so complexity becomes minimal for later code
   generation.
+
+- A "cooked syntax tree" (csn tree) is created from the "raw syntax tree" (stn
+  tree) that makes objects from the syntax tree more directly accessible, and
+  also employs some further optimizations. Beginnings (i.e., root nodes) of
+  statements and expressions are clearly marked. This makes code generation
+  much easier.
