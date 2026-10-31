@@ -30,8 +30,8 @@ Build Process
   'ebnfcomp' directory (formerly a git submodule); a plain 'git clone URL' is
   enough. It is built by the makefile ('cd ebnfcomp && make').
 
-- Dependencies in makefile might be incomplete; use 'make -B' to do a full
-  rebuild.
+- The makefile tracks the generated files and their sources; use 'make -B' to
+  do a full rebuild after larger changes.
 
 - If at any point, a build error occurs, please let me know, so that I can have
   a look at it.

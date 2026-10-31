@@ -12,7 +12,7 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Never hand-edit generated files (see `docs/build-system.md`).
 
 ## Repo state
-- Branch `master` (main branch for PRs is `main`); latest commit `d63337a` ("Various fixes by Claude Code", 2026-10-31).
+- Branch `master` (main branch for PRs is `main`); latest commit `d4050fa` ("Claude session files updated", 2026-10-31).
 - Uncommitted at session start: `implnotes.txt` (new "Planned Features" chapter: variable storage, code generation,
   three-address code opcode list) and a number of untracked generated/scratch files (`*.inc`, `mainsyntax.nasm`,
   `parsenodename.nasm`, `stnflgtbl.nasm`, `main.ebnf`, `test2/3/4`, `foo.txt`, `.gitignore`, `.vscode/`, …).
@@ -23,6 +23,8 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 ## Build / test status
 - **`make -B` succeeds** (exit 0, 2026-10-31). No warnings or notes any more (the last two were fixed). It regenerated all generated files,
   objects/listings and the `asmbasic` binary (no source edits).
+- Since the fixes: identifiers/strings > 1004 bytes are rejected, empty lines are ignored, `-c`/file args print notices, makefile
+  dependencies complete.
 - Verified in `--stdio` mode: help, option handling, tokenizer round trips, raw/cooked tree printing, syntax errors,
   limits. **SDL mode was not exercised** (the process just waits; no display confirmed).
 - No automated tests exist. See `docs/usage.md` for manual verification.
@@ -39,6 +41,10 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Docs written from the source, then checked against real `--stdio` output and corrected (see `HistoryLog-Claude.md`).
   Statements about SDL mode still come from reading the source only.
 - Created `HistoryLog-Claude.md` (entries per commit; nothing pending).
+
+## Pending commit
+- New `bump_version.sh`; known-problem fixes (see `HistoryLog-Claude.md` Pending): `tokens.nasm`, `main.nasm`, `makefile`, `README.md`, `implnotes.txt`,
+  `CLAUDE.md`, `docs/*`.
 
 ## Next steps
 - See `docs/roadmap.md`. The user's own next step (per `implnotes.txt`) is variable storage + three-address code.

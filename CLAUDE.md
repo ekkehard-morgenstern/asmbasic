@@ -22,6 +22,7 @@ explicitly exempt (see `LICENSE`, file headers).
   move the pending entries into the **Log** as `### <id> — <timestamp> — "<subject>"` (oldest first, with file/line
   stats) and clear Pending. Commits whose message lacks "Claude" are not logged (mention it if the user bundled
   Claude's work into one). Never commit it myself — the user does.
+- **Never run `bump_version.sh` without `--dry-run`** — it creates a git tag (a git write). The user runs it.
 - Don't claim something builds or works unless you ran it. Say what was and wasn't verified.
 
 Full documentation is in `docs/` — start with `docs/README.md`.
@@ -33,7 +34,8 @@ Full documentation is in `docs/` — start with `docs/README.md`.
 ```
 sudo apt install build-essential nasm libsdl2-dev perl     # prerequisites (Debian/Ubuntu)
 git clone <url>                                             # ebnfcomp is vendored in ebnfcomp/ (no submodule)
-make -B                                                     # full rebuild (dependencies in makefile are incomplete)
+make                                                        # incremental build (makefile dependencies are complete for generated files)
+make -B                                                     # full rebuild
 make DEBUG=1 -B                                             # -g -F dwarf, no -s
 ./asmbasic --help
 ```

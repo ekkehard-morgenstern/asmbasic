@@ -72,9 +72,9 @@ Notes:
 | Limit | Value |
 |---|---|
 | Line length | 8191 bytes UTF-8 (SDL line editor: 1023 code points) |
-| String constant | ≈1004 bytes UTF-8 (longer literals are silently truncated — verified with 1500) |
+| String constant | 1004 bytes UTF-8; longer → `? Identifier or string too long` (verified: 1004 ok, 1005 rejected) |
 | Token string | 32768 bytes (`tokenpad`); overflow → `? Tokenizer failure` (≈5000–5600 chars of `1+1+…`) |
-| Identifier | 1004 bytes UTF-8 per README; a 1500-character identifier was accepted untruncated in testing |
+| Identifier | 1004 bytes UTF-8 (incl. sigil/`(`); longer → same error (verified) |
 | Keywords | 256 |
 | Character set | 256 user-redefinable 8×12 glyphs |
 | Text screen | 80×25 cells; 4-bit foreground, 4-bit background, 16-colour palette |

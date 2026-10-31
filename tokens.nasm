@@ -322,7 +322,11 @@ tokenize                enter       0x10,0
 
                         call        tok_dumptokbuf
 
-.skipdump2              mov         rax,rbx
+                        ; identifier or string literal didn't fit its buffer?
+.skipdump2              cmp         qword [tok_toolong],0
+                        je          .notlong
+                        xor         rbx,rbx
+.notlong                mov         rax,rbx
                         test        rax,rax
                         jz          .end
 
@@ -431,6 +435,26 @@ tok_puts                enter       0,0
                         mov         rdi,[tokenpadptr]
                         rep         movsb
                         mov         [tokenpadptr],rdi
+.end                    leave
+                        ret
+
+; ---------------------------------------------------------------------------
+
+                        ; put code point of an identifier or string literal
+                        ; into its scratch buffer (initialized with
+                        ; uclineoutinit). ucputcp() silently drops a code point
+                        ; that doesn't fit; detect that and raise the
+                        ; tok_toolong flag, so tokenize() can fail.
+                        ; rdi - code point
+                        ; rsi - length of the text so far, in bytes
+                        ; output:
+                        ; rax - new length
+tok_putcp               enter       0x10,0
+                        mov         [rbp-0x08],rsi
+                        call        ucputcp
+                        cmp         rax,[rbp-0x08]
+                        jne         .end
+                        mov         qword [tok_toolong],1
 .end                    leave
                         ret
 
@@ -746,6 +770,7 @@ tok_main                enter       0x10,0
                         ; the text string in UTF-8 format.
 
 tok_strlit              enter       0x10,0
+                        mov         qword [rbp-0x08],0
 
                         lea         rdi,[strlitbuf]
                         mov         rsi,strlitbufsize
@@ -758,7 +783,8 @@ tok_strlit              enter       0x10,0
                         je          .end
 
                         mov         rdi,rax
-                        call        ucputcp
+                        mov         rsi,[rbp-0x08]
+                        call        tok_putcp
                         mov         [rbp-0x08],rax
 
                         jmp         .fetchloop
@@ -808,13 +834,15 @@ tok_ident               enter       0x30,0
                         mov         [rbp-0x18],rbx
                         mov         [rbp-0x20],r12
                         mov         byte [rbp-0x30],0 ; type field
+                        mov         qword [rbp-0x08],0
 
                         lea         rdi,[identbuf]
                         mov         rsi,identbufsize
                         call        uclineoutinit
 
                         mov         rdi,[rbp-0x10]
-.storechar              call        ucputcp
+.storechar              mov         rsi,[rbp-0x08]
+                        call        tok_putcp
                         mov         [rbp-0x08],rax
 
                         call        tok_getch
@@ -880,7 +908,8 @@ tok_ident               enter       0x30,0
 
                         ; we have a sigil: store the character
 .sigil                  mov         rdi,rax
-                        call        ucputcp
+                        mov         rsi,[rbp-0x08]
+                        call        tok_putcp
                         mov         [rbp-0x08],rax
 
                         ; now, check for left parenthesis (function/array
@@ -894,7 +923,8 @@ tok_ident               enter       0x30,0
 
                         ; we have a left parenthesis: store it & finish
 .lparen                 mov         rdi,rax
-                        call        ucputcp
+                        mov         rsi,[rbp-0x08]
+                        call        tok_putcp
                         mov         [rbp-0x08],rax
                         or          byte [rbp-0x30],2 ; func flag in type field
                         jmp         .endread
@@ -987,6 +1017,7 @@ tok_dumplinebuf         enter       0,0
                         ; rdi - address of text line
                         ; rsi - size of text, in bytes
 tok_prepare             enter       0,0
+                        mov         qword [tok_toolong],0
                         call        uclineininit
                         lea         rdi,[linebuf]
                         mov         rsi,linebufsize
@@ -1445,8 +1476,9 @@ firstmapentry           dq          0
 
                         section     .bss
                         global      sourceputback,tokenpad,tokenpadptr
-                        global      linebuf,linebuflen
+                        global      linebuf,linebuflen,tok_toolong
 
+tok_toolong             resq        1
 g_tokenmap              resq        tokenmap_size/8
 linebuf                 resq        LINEBUF_BYTES/8
 linebufsize             equ         $-linebuf

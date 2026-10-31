@@ -31,6 +31,8 @@ In Standard I/O terminal emulation (switched on with the "--stdio" option), the 
 
 In default or SDL mode (default, or switched on with the "--sdl" option), the compile and go system currently enters a loop asking for BASIC input lines, tokenizes them and runs them through the syntax analyzer. It then outputs the syntax tree.
 
+Empty input lines are ignored. To leave the program, press Ctrl-D (end of input) in standard I/O mode, or ESC in the SDL window. The "--curses" option and a file name argument are accepted, but not implemented yet; a notice is printed and they are ignored (curses falls back to standard I/O).
+
 To get the previous behavior, (also) specify the "--testtok" option, which will instead enter tokenizer testing mode and outputting the tokenized form as well as the detokenized form of the input lines.
 
 To print the parsing tree, specify the "--dumppt" option, which will output it to standard output and then exit the program. Since parts of it are naturally self-recursive, branches that have already been printed are output as "...".
@@ -41,15 +43,19 @@ To print the syntax tree, specify the "--stnprint" option.
 
 To print the cooked syntax tree, specify the "--csnprint" option (currently always enabled).
 
+## Versions
+
+Versions are git tags of the form vMAJOR.MINOR.BUILD. Use "./bump_version.sh" to create the next build version tag, or "--minor", "--major" or "--set X.Y.Z" for explicit versions (see "./bump_version.sh --help"). The build embeds the newest tag in the greeting.
+
 ## Limitations
 
 Some of the currently defined limits are as follows:
 
 The current maximum line length is 8191 bytes of UTF-8 text. However, the current maximum line editing length in the SDL driver is 1023 Unicode code points.
 
-The current maximum length of string constants is 1004 bytes of UTF-8 text.
+The current maximum length of string constants is 1004 bytes of UTF-8 text. Longer ones are rejected with "? Identifier or string too long".
 
-The current maximum length of identifiers is 1004 bytes of UTF-8 text.
+The current maximum length of identifiers is 1004 bytes of UTF-8 text (same error message).
 
 Unicode support is currently limited to 8 bit code points (lowest Unicode bank).
 

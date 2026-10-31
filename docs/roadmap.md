@@ -25,21 +25,15 @@ Open work. Keep this file current (see `CLAUDE.md`). Status date: 2026-10-31.
 
 (Found by reading; not all reproduced.)
 
-- Makefile dependency lists are incomplete; `-B` required. `verstr.inc` has no dependency on the git tag.
-- `--curses` is listed but not implemented; it silently uses the stdio functions.
-- A filename on the command line is parsed but ignored.
-- `main_loop` and `tokenizer_test` stop at the first empty line instead of just prompting again.
-- `README.md` says "default or SDL mode … asks for BASIC input lines" and describes both modes identically; the
-  `--csnprint` option is documented as "currently always enabled" (the code initialises `csnprint` to 1 and never
-  clears it).
-- Over-long string literals are silently truncated at ≈1004 bytes instead of producing an error (verified).
 - The detokenized text differs from the input (upper-casing, odd spacing like ` PRINT"a"; B$`, hex numbers shown as `&H1.FEP7`); fine for debugging but not a faithful `LIST`.
 - None of the NASM sources has a `.note.GNU-stack` section; the makefile links with `-z noexecstack` instead. A new module that really needs an executable stack would have to change that.
 - Cooked tree is not fully flattened: `(generic)` and single-operand `S_EXPRESSION` wrapper nodes remain.
-- Buffer sizes are fixed (`linebuf` 16 KiB, `tokenpad` 32 KiB, ident/string 1 KiB); long lines may fail tokenization.
+- Buffer sizes are fixed (`linebuf` 16 KiB, `tokenpad` 32 KiB, ident/string 1 KiB). Over-long identifiers/strings (> 1004 bytes) and token-heavy lines now fail with an error message, but the limits remain.
+- `--curses` and a file name argument only print a notice (the features do not exist yet).
 - Keywords exist in `tokenlist.txt` that the grammar does not use (see `language.md`).
-- Generated files and scratch files are untracked/stale in the working tree (`main.lst.1/.2`, `csnrefinery.*`, `x*`, `test*`,
-  `make-*.log`, `all`). `.gitignore` itself is untracked.
+- Stale scratch files remain in the working tree but are git-ignored and not part of the build (`main.lst.1/.2`,
+  `csnrefinery.*`, `x*`, `test*`, `sizes`, `make-*.log`, `foo.txt`). Delete them if you don't need them (not done without
+  the author's say-so).
 - `ebnfcomp`'s regular-expression support is partly broken (its README); grammar regexes should stay simple. It is now
   vendored, so it can be fixed in this repository.
 - Only code points 0–255 are fully supported; the font is 256 glyphs.
@@ -50,6 +44,15 @@ Open work. Keep this file current (see `CLAUDE.md`). Status date: 2026-10-31.
 - Add a `tests/` directory with input files and expected `--stdio --csnprint` output plus a `make check` target.
 - Track generated include files explicitly in the makefile.
 - Remove or archive stale scratch files after confirming with the author.
+
+## Fixed (2026-10-31)
+
+- Makefile dependencies completed (`keywords.inc`, `mainsyntax.inc`, `ebnfcomp` sources, `sdlconcev.inc`, version string); an incremental `make` now rebuilds what changed.
+- Identifiers and strings over 1004 bytes were silently cut; now `? Identifier or string too long`.
+- An empty input line used to end the program; now it is ignored (EOF/ESC still end it).
+- `--curses` and a file name argument were silently ignored; now a notice is printed.
+- README corrected.
+- Added `bump_version.sh` (bump build/minor/major or set a version, tag creation).
 
 ## Decisions pending with the user
 

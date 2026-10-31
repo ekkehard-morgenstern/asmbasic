@@ -53,11 +53,14 @@ MODULES=main.o osversion.o cpuinfo.o locale.o unicode.o xalloc.o patchbay.o \
 asmbasic: $(MODULES)
 	gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lrt -lSDL2
 
-ebnfcomp/ebnfcomp:
+ebnfcomp/ebnfcomp: ebnfcomp/main.c ebnfcomp/makefile
 	cd ebnfcomp && make && cd ..
 
-mainsyntax.nasm: main.ebnf
+mainsyntax.nasm: main.ebnf ebnfcomp/ebnfcomp
 	ebnfcomp/ebnfcomp --asm mainsyntax <main.ebnf
+
+# ebnfcomp writes both files in one run
+mainsyntax.inc: mainsyntax.nasm ;
 
 parsenodename.nasm: mainsyntax.inc extract_nodetext.pl
 	./extract_nodetext.pl >parsenodename.nasm
@@ -74,7 +77,11 @@ main.ebnf: defaultsyntax.ebnf tokenlist.txt build_main_ebnf.pl
 tokendef.inc: tokenlist.txt extract_tl.pl
 	./extract_tl.pl
 
-verstr.inc:
+# extract_tl.pl writes both files in one run
+keywords.inc: tokendef.inc ;
+
+# the version string comes from the current branch name or the newest tag
+verstr.inc: tagtoverstr.pl $(wildcard .git/HEAD .git/refs/tags .git/packed-refs)
 	./tagtoverstr.pl
 
 csntext.inc: cookedsyntree.inc keywords.inc tokendef.inc extract_csntext.pl
@@ -96,9 +103,9 @@ patchbay.o:	patchbay.nasm
 
 stdconsole.o: stdconsole.nasm
 
-sdlconsrv.o: sdlconsrv.nasm sdlconshr.inc
+sdlconsrv.o: sdlconsrv.nasm sdlconshr.inc sdlconcev.inc
 
-sdlconcli.o: sdlconcli.nasm sdlconshr.inc
+sdlconcli.o: sdlconcli.nasm sdlconshr.inc sdlconcev.inc
 
 sdlconcev.o: sdlconcev.nasm sdlconshr.inc sdlconcev.inc
 
@@ -123,4 +130,4 @@ syntree.o: syntree.nasm syntree.inc parsetree.inc mainsyntax.inc
 stnflgtbl.o: stnflgtbl.nasm syntree.inc
 
 cookedsyntree.o: cookedsyntree.nasm cookedsyntree.inc csntext.inc \
-				 syntree.inc parsetree.inc mainsyntax.inc
+				 keywords.inc syntree.inc parsetree.inc mainsyntax.inc

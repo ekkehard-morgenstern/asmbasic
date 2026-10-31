@@ -18,9 +18,12 @@ The README's limits (line 8191 bytes, identifiers/strings 1004 bytes) follow fro
 - A line of `PRINT 1+1+1+…` fails with `? Tokenizer failure` somewhere between 5000 and 5600 characters (each `1+` costs
   12 token bytes, so the 32 KiB `tokenpad` fills before the 8 KiB line limit matters). Token-heavy lines are thus limited
   by `tokenpad`, not by the line length.
-- A string literal of 1500 characters is cut to about 1004 characters (silently). An identifier of 1500 characters
-  survived the round trip untruncated, so the 1004 limit for identifiers in the README/`language.md` is not enforced by
-  `tokenize` (the limit may apply elsewhere, e.g. in the token map).
+- Identifiers and string literals are collected in 1 KiB scratch buffers (1004 usable bytes: `uclineoutinit` reserves
+  `WCOUT_OVERSHOOT` = 20). `ucputcp` silently drops what does not fit, so `tok_putcp` (wrapper) compares the length
+  before/after and sets the flag `tok_toolong`; `tokenize` then returns failure and `main_loop` prints
+  `? Identifier or string too long` (instead of `? Tokenizer failure`). Verified: 1004 characters accepted, 1005 rejected,
+  for both identifiers and strings. (Earlier versions of this document claimed identifiers were not truncated; that was a
+  measurement error. Before the fix both were silently cut at 1004.)
 
 ## Token encodings
 
@@ -62,7 +65,7 @@ tables (`tokendesc`: two chain pointers, `td_namelen`, `td_enclen`, name, encodi
 | Function | In | Out | Notes |
 |---|---|---|---|
 | `init_tokenizer` | — | — | builds token map; call once after `init_locale` |
-| `tokenize` | `rdi` line, `rsi` length | `rax` ≠ 0 success | fills `tokenpad`, sets `tokenpadptr`; failure only if `tokenpad` overflows |
+| `tokenize` | `rdi` line, `rsi` length | `rax` ≠ 0 success | fills `tokenpad`, sets `tokenpadptr`; fails if `tokenpad` overflows or `tok_toolong` was set (identifier/string > 1004 bytes) |
 | `detokenize` | `rdi` tokens, `rsi` length, `rdx` flags | text into `linebuf` | `rdx`=0 in current callers; output is read back with `tok_dumplinebuf` |
 | `tok_dumplinebuf` | — | — | prints `linebuf` via `pb_putfmt` |
 | `dump_tokenmap` | — | — | debugging |

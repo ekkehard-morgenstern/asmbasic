@@ -41,7 +41,7 @@ LBUF_SIZE               equ         8192
                         extern      tokenpad,tokenpadptr,stn_debug,prtsyntree
                         extern      stn_tokenptr,stn_tokenend,linebuf,linebuflen
                         extern      cooksyntree,delcookedsyntree
-                        extern      printcookedsyntree
+                        extern      printcookedsyntree,tok_toolong
 
 main                    enter       0,0
                         mov         [argc],rdi
@@ -49,7 +49,26 @@ main                    enter       0,0
 
                         call        init_locale
                         call        getargs
-                        call        chkcputype
+
+                        ; options/arguments that are accepted but not (yet)
+                        ; implemented: say so instead of silently ignoring them
+                        cmp         qword [consolemode],2
+                        jne         .notcurses
+                        mov         rdi,[stderr]
+                        lea         rsi,[cursesnotimpl]
+                        xor         al,al
+                        call        fprintf
+                        mov         qword [consolemode],1
+
+.notcurses              cmp         qword [filename],0
+                        je          .nofilename
+                        mov         rdi,[stderr]
+                        lea         rsi,[filenotimpl]
+                        mov         rdx,[filename]
+                        xor         al,al
+                        call        fprintf
+
+.nofilename             call        chkcputype
                         call        initparsetree
 
                         cmp         qword [dumppt],0
@@ -289,7 +308,7 @@ tokenizer_test          enter       0,0
                         dec         rax
                         mov         byte [rdi+rax],0
 .nolf                   test        rax,rax
-                        jz          .end
+                        jz          .lineloop
                         lea         rdi,[lbuf]
                         mov         rsi,rax
                         call        tokenize
@@ -324,7 +343,7 @@ main_loop               enter       0,0
                         dec         rax
                         mov         byte [rdi+rax],0
 .nolf                   test        rax,rax
-                        jz          .end
+                        jz          .lineloop
 
                         ; tokenize line buffer
                         lea         rdi,[lbuf]
@@ -395,6 +414,9 @@ main_loop               enter       0,0
                         jmp         .readyloop
 
 .tokfail                lea         rdi,[tokenfail]
+                        cmp         qword [tok_toolong],0
+                        je          .printerr
+                        lea         rdi,[toolongfail]
                         jmp         .printerr
 
                         section     .bss
@@ -437,6 +459,9 @@ greeting                db          'AsmBASIC '
                         db          10,10,0
 readyprompt             db          'Ready.',10,0
 tokenfail               db          '? Tokenizer failure',10,0
+toolongfail             db          '? Identifier or string too long',10,0
+cursesnotimpl           db          '? Curses mode is not implemented, using standard I/O',10,0
+filenotimpl             db          '? Loading files is not implemented, ignored: %s',10,0
 syntaxerror             db          '? Syntax error',10,0
 syntaxerrorex           db          '? Syntax error near <<%-*.*s>>',10,0
 

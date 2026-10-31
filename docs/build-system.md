@@ -15,7 +15,7 @@
 | Command | Effect |
 |---|---|
 | `make` / `make all` | builds `ebnfcomp/ebnfcomp` and `asmbasic`, then writes `echo ok >all` |
-| `make -B` | forced full rebuild — **recommended**, the dependency list is incomplete |
+| `make -B` | forced full rebuild (a plain incremental `make` is reliable for the generated files since 2026-10-31, `-B` is still the safe choice after big changes) |
 | `make DEBUG=1` | assembles with `-g -F dwarf`, links with `-g -no-pie -z noexecstack` (no `-s`) |
 | `make clean` | `rm asmbasic *.o *.lst ebnfcomp/ebnfcomp` (does not remove generated `.inc`/`.nasm`) |
 
@@ -73,9 +73,39 @@ tables (`mainsyntax_branches`, `mainsyntax_parsingTable`) and an include file wi
 partly broken; only one length-prefixed sequence per chain). Since it is vendored, fixes are made here directly; the upstream repository is no longer the source of truth (the unused
 variable `token` in `read_production` was removed here and does not exist upstream).
 
-## Dependency caveats
+## Versioning (`bump_version.sh`)
 
-- The makefile's dependency lists are incomplete (acknowledged in `implnotes.txt`). Use `make -B` after touching
-  `.ebnf`, `.inc`, `tokenlist.txt` or a Perl script.
-- `main.o` depends on `verstr.inc`, which has no dependency on the tag, so it only regenerates when absent.
-- The `all` file is a stamp; it is git-ignored and unrelated to the target of the same name.
+Version = `vMAJOR.MINOR.BUILD` as a git tag (existing tags are lightweight). `bump_version.sh` finds the highest such tag
+(version order) and creates the next one on `HEAD` — commit first.
+
+| Command | Effect (from v0.0.8) |
+|---|---|
+| `./bump_version.sh` or `--build` | v0.0.9 |
+| `--minor` | v0.1.0 (build reset) |
+| `--major` | v1.0.0 (minor and build reset) |
+| `--set X.Y.Z` | exactly that version; must be higher than the current one unless `--force` |
+| `--annotate ["text"]` | annotated tag instead of lightweight |
+| `--dry-run` / `-n` | show the result only (dirty tree is just a warning then) |
+| `--force` | allow a dirty tree and a non-increasing `--set` |
+| `--show` | print the current version |
+
+Refuses an existing tag, a malformed version and (without `--force`) a dirty tree. It never pushes (`git push origin vX.Y.Z`).
+Afterwards `make` regenerates `verstr.inc` (`tagtoverstr.pl`; the makefile watches `.git/refs/tags` and `.git/packed-refs`)
+and relinks `main.o`. Tested in a throwaway repository (build/minor/major/set/annotate/dry-run/error cases) and as `--dry-run`
+here; **no real tag was created in this repository**, and the makefile re-trigger after a real tag was not exercised.
+`tagtoverstr.pl` prefers a `vN.N` found in the current *branch name* over the tag, so don't name branches like `v2`
+if you want the tag to show.
+
+## Dependencies
+
+Fixed 2026-10-31: the makefile now tracks the generator chain. Verified by touching files:
+
+- `touch tokenlist.txt` → `tokendef.inc`/`keywords.inc` → `main.ebnf` → `mainsyntax.*` → dependent objects → relink (8 `nasm` runs);
+- `touch ebnfcomp/main.c` → `ebnfcomp` is rebuilt, the grammar tables regenerated and the dependent objects rebuilt;
+- `touch tagtoverstr.pl` (or a new tag/branch switch: `.git/HEAD`, `.git/refs/tags`, `.git/packed-refs`) → `verstr.inc` → `main.o`.
+
+`mainsyntax.inc` and `keywords.inc` are by-products of the same generator run as `mainsyntax.nasm` / `tokendef.inc`
+(rules with empty recipes `mainsyntax.inc: mainsyntax.nasm ;`). Still not tracked: the Perl scripts' own inputs beyond those
+listed in the makefile, and the `.nasm` → `.inc` includes of a module you add — list them explicitly. `make -B` remains the
+safe choice after larger changes.
+- The `all` file is a stamp (`echo ok >all`), git-ignored, and also the name of the default target.

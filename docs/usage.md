@@ -11,7 +11,7 @@
 | `--help` | `-h` | print usage to stderr and exit(1) |
 | `--sdl` | `-d` | SDL window console (default) |
 | `--stdio` | `-s` | standard I/O console |
-| `--curses` | `-c` | ncurses — **not implemented** (verified: behaves exactly like `--stdio`) |
+| `--curses` | `-c` | ncurses — **not implemented**: prints `? Curses mode is not implemented, using standard I/O` and behaves like `--stdio` |
 | `--testtok` | | tokenizer test mode (detokenize round trip), no parsing |
 | `--dumppt` | | print the parse tree and exit |
 | `--stndebug` | | log syntax tree node creation/deletion |
@@ -19,14 +19,15 @@
 | `--csnprint` | | print the cooked syntax tree (already the default: `csnprint` starts at 1) |
 
 Bad options print `? Bad option "…" ignored`; a second filename prints `? Extra filename ignored`. The filename is
-stored but unused.
+stored but unused; a non-empty filename prints `? Loading files is not implemented, ignored: <name>` (stderr).
 
 ## Interactive behaviour
 
 Greeting `AsmBASIC v0.0.8` plus a blank line, then `Ready.`. There is no other prompt string; input is read at the cursor. Each non-empty line is tokenized, parsed and its trees are
-printed. An empty line **ends the program** (verified: lines after an empty line are ignored), as does end of input (EOF). Errors:
+printed. Empty lines are ignored (verified; they used to end the program). The program ends at end of input (Ctrl-D / EOF) or, in SDL mode, ESC. Errors:
 
 - `? Tokenizer failure` — token buffer exhausted
+- `? Identifier or string too long` — an identifier or string literal over 1004 bytes
 - `? Syntax error` — nothing matched
 - `? Syntax error near <<…>>` — a prefix matched, the shown text is the rest of the line (verified: `10 PRINT 1 2` → `? Syntax error near << 2>>`; the detokenized remainder starts with a space). After an error `Ready.` is printed again.
 
@@ -44,7 +45,7 @@ There is no test suite. For changes:
 3. `./asmbasic --stdio --stnprint` with representative statements from each group (assignment, `IF … THEN`, `FOR`,
    `DIM`, `PRINT USING`, `DEF FN`, `ON … GOTO`, line numbers).
 4. Compare cooked-tree output before/after a grammar change.
-5. Pipe input for repeatable checks: `printf '10 PRINT "HI"\n' | ./asmbasic --stdio` (EOF ends the program). Don't put an empty line before the lines you want processed.
+5. Pipe input for repeatable checks: `printf '10 PRINT "HI"\n' | ./asmbasic --stdio` (EOF ends the program).
 
 Capture baseline outputs *before* editing the grammar, since the output is the only oracle.
 
