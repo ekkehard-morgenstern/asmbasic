@@ -99,3 +99,141 @@ Syntax Analysis Process
   also employs some further optimizations. Beginnings (i.e., root nodes) of
   statements and expressions are clearly marked. This makes code generation
   much easier.
+
+===============================
+P L A N N E D   F E A T U R E S
+===============================
+
+----------------
+Variable Storage
+----------------
+
+- How to allocate variables? Options:
+  o Straight from the heap: Using xalloc() or malloc()
+  o From a memory pool
+
+---------------
+Code Generation
+---------------
+
+- Which types of intermediate code? Options:
+  o Three-Address Code
+  o Other (specify)
+
+------------------
+Three-Address Code
+------------------
+
+   +--------+--------+--------+--------+
+   | Opcode | Target | Sourc1 | Sourc2 |
+   +--------+--------+--------+--------+
+
+- How to encode Targets/Sources?
+  o Pointer to descriptor.
+
+- How to encode S/T descriptor?
+  o Needs to differentiate between temporary variables and user-defined
+    variables and function/procedure arguments.
+  o Descriptors must be context sensitive, i.e. have parent descriptors,
+    to support state changes.
+  o States of user-defined variables:
+    - Global or local to current procedure/function.
+    - Automatic declaration (unDIMensioned arrays are single-dimensional and
+      from 0..10).
+    - Numbers are preallocated with 0, Strings with "".
+    - Initialized by programmer using assignment statement.
+    - (Arrays) Dimensioned by programmer using DIM statement.
+    - Erased by programmer using ERASE statement.
+
+- Opcodes (can be either abstract or concrete, depending on code generation
+    stage)
+  o BEGINCALL t
+    - argument context
+    - t: context
+  o ARGUMENT t,s1
+    - assigns a temporary variable (used as a parameter) to an argument context
+    - t: context, s1: var
+  o RESULT t,s1
+    - assigns a temporary variable (used as a result) to an argument context
+    - t: context, s1: var
+  o CALL t,s1
+    - issues a call to a function or procedure
+    - t: context, s1: func/proc reference
+  o ENDCALL t
+    - argument context
+    - t: context
+  o AND, OR, XOR, NOT, ADD, SUB, MUL, DIV, CONCAT, NUMEQ, NUMNE, NUMGT, NUMLT,
+    NUMGE, NUMLE, STREQ, STRNE, STRGT, STRLT, STRGE, STRLE, ...
+    OP t,s1[,s2]
+    - built-in operators
+    - t: var, s1,s2: var/value
+  o BRIT, BRIF; BRANCH
+    OP t[,s1]
+    - branch if TRUE / FALSE; unconditionally
+    - t: target location
+    - s1: var
+  o MOVE t,s1
+    - assignments
+    - t: var, s1: var/value
+  o GLOBAL t
+    - declare global variable
+    - t: var
+  o DIMENSION t,s1
+    - dimension an array (always one-dimensional, regardless of user dimensions)
+    - t: target variable
+    - s1: descriptor holding following fields:
+      - user-defined dimensions
+      - actual dimension
+      - DYNAMIC/ASSOC mode indicator
+  o ERASE t
+    - ERASEs an array
+    - t: target variable
+  o BEGINFRAME t
+    - begins a (stack) frame context
+    - t: context
+  o LOCAL t,s1
+    - declares a frame local variable
+    - t: context, s1: var
+  o REFLOCAL t,s1
+    - references a global variable in a frame (as a local variable)
+    - t: context, s1: var
+  o REFGLOBAL t,s1
+    - references a global variable in a frame (as a global variable)
+    - t: context, s1: var
+  o ENDFRAME t
+    - ends a (stack) frame context
+    - t: context
+  o BEGINLOOP t
+    - creates loop context
+    - t: context
+  o ITERATE t
+    - iterate a loop
+    - t: context
+  o AGAIN t
+    - repeats loop body without iteration
+    - t: context
+  o LEAVE t
+    OP t
+    - leave a loop
+    - t: context
+  o ENDLOOP t
+    - deletes loop context
+    - t: context
+  o BEGINCOND t
+    - begins a conditional context
+    - t: context
+  o CONDEXPR t,s1
+    - sets the conditional expression
+    - t: context, s1: expr location
+  o CONDTRUE t,s1
+    - sets the conditional expression's TRUE branch
+    - t: context, s1: code location
+  o CONDFALSE t,s1
+    - sets the conditional expression's FALSE branch
+    - t: context, s1: code location
+  o ENDCOND t
+    - ends a conditional context
+    - t: context
+  o LABEL t
+    - defines a label at the "current code location"
+    - t: var
