@@ -12,12 +12,12 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Never hand-edit generated files (see `docs/build-system.md`).
 
 ## Repo state
-- Branch `master` (main branch for PRs is `main`); latest commit `6e3b29d` ("introducing Claude Code to AsmBASIC", 2026-10-31, includes Claude's docs).
+- Branch `master` (main branch for PRs is `main`); latest commit `d63337a` ("Various fixes by Claude Code", 2026-10-31).
 - Uncommitted at session start: `implnotes.txt` (new "Planned Features" chapter: variable storage, code generation,
   three-address code opcode list) and a number of untracked generated/scratch files (`*.inc`, `mainsyntax.nasm`,
   `parsenodename.nasm`, `stnflgtbl.nasm`, `main.ebnf`, `test2/3/4`, `foo.txt`, `.gitignore`, `.vscode/`, …).
-- Session docs were committed in `6e3b29d`; `ebnfcomp` was vendored in `8fa7859` (submodule removed) and
-  `6245add`. `.claude/` is git-ignored (settings stay local).
+- Session docs were committed in `6e3b29d`; `ebnfcomp` was vendored in `8fa7859` (submodule removed);
+  `6245add` and `d63337a` ("Various fixes by Claude Code": ebnfcomp warning, docs, makefile `-z noexecstack`, `tagtoverstr.pl`). `.claude/` is git-ignored (settings stay local).
 - Version string: `v0.0.8` (`verstr.inc`, derived from a git tag by `tagtoverstr.pl`).
 
 ## Build / test status
@@ -38,11 +38,7 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
   language, tokenizer, grammar-and-parser, syntax-trees, console-subsystem, support-modules, conventions, roadmap).
 - Docs written from the source, then checked against real `--stdio` output and corrected (see `HistoryLog-Claude.md`).
   Statements about SDL mode still come from reading the source only.
-- Created `HistoryLog-Claude.md` (Pending section holds this session).
-
-## Pending commit
-- `ebnfcomp/main.c` (unused variable removed), `makefile` (`-z noexecstack`), `tagtoverstr.pl` (grep pattern, version-ordered tag), `README.md`, `implnotes.txt`, `CLAUDE.md`, `docs/build-system.md`,
-  `docs/roadmap.md`, `SESSION.md`, `HistoryLog-Claude.md`.
+- Created `HistoryLog-Claude.md` (entries per commit; nothing pending).
 
 ## Next steps
 - See `docs/roadmap.md`. The user's own next step (per `implnotes.txt`) is variable storage + three-address code.
