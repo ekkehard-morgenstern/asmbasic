@@ -12,7 +12,12 @@ Related files: `SESSION.md` (current state), `docs/roadmap.md` (open work).
 
 ## Pending (not committed yet)
 
-### Session 2026-10-31 — project onboarding and documentation
+(nothing pending)
+
+## Log
+
+### 6e3b29d — 2026-10-31 08:32:22 +0100 — "introducing Claude Code to AsmBASIC"
+25 files, +3846/-0.
 - Created `CLAUDE.md` (standing rules: Sonnet only, no git writes, disjoint from Engine1999; build, conventions, module map),
   `SESSION.md`, `.claude/settings.json` (`"model": "sonnet"`) and `docs/` (README, architecture, build-system, usage,
   language, tokenizer, grammar-and-parser, syntax-trees, console-subsystem, support-modules, conventions, roadmap).
@@ -23,7 +28,6 @@ Related files: `SESSION.md` (current state), `docs/roadmap.md` (open work).
   Corrected the docs where they were wrong (cooked-tree format, `S_LINE` never created, case folding, string truncation,
   token-buffer limit, empty line ends the program). SDL mode was **not** exercised.
 - No source files (`*.nasm`, `*.inc` sources, `*.pl`, `*.ebnf`, makefile) were edited.
-
-## Log
-
-(no entries yet)
+- The user bundled other files into this commit: `.gitignore`, `implnotes.txt` (planned-features chapter), the generated
+  `8x12font1.inc csntext.inc keywords.inc main.ebnf mainsyntax.inc tokendef.inc verstr.inc` and `threeaddrcode.inc`.
+  `.claude/` is git-ignored, so `.claude/settings.json` is not in the repository.

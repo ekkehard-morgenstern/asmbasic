@@ -25,6 +25,7 @@ test3
 test4
 .claude/
 .vscode/
-
 !ebnfcomp/*.c
 ebnfcomp/ebnfcomp
+.obsidian/
+

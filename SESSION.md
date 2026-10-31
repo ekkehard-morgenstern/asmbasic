@@ -12,13 +12,13 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Never hand-edit generated files (see `docs/build-system.md`).
 
 ## Repo state
-- Branch `master` (main branch for PRs is `main`); latest commit `aed957c` ("implementation notes updated").
+- Branch `master` (main branch for PRs is `main`); latest commit `6e3b29d` ("introducing Claude Code to AsmBASIC", 2026-10-31, includes Claude's docs).
 - Uncommitted at session start: `implnotes.txt` (new "Planned Features" chapter: variable storage, code generation,
   three-address code opcode list) and a number of untracked generated/scratch files (`*.inc`, `mainsyntax.nasm`,
   `parsenodename.nasm`, `stnflgtbl.nasm`, `main.ebnf`, `test2/3/4`, `foo.txt`, `.gitignore`, `.vscode/`, …).
-- Uncommitted from this session (all new, created by Claude): `CLAUDE.md`, `SESSION.md`, `HistoryLog-Claude.md`,
-  `.claude/settings.json`, `docs/*.md`. No source files were changed. `make -B` also modified build outputs and left
-  the `ebnfcomp` submodule dirty in `git status`.
+- Session docs were committed in `6e3b29d`. `.claude/` is git-ignored (settings stay local). The `ebnfcomp` submodule shows
+  as dirty only because of its built binary.
+- Open question: vendoring `ebnfcomp` into this repo and dropping the submodule (commands given to the user, not yet applied).
 - Version string: `v0.0.8` (`verstr.inc`, derived from a git tag by `tagtoverstr.pl`).
 
 ## Build / test status
