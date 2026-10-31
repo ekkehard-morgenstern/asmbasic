@@ -18,7 +18,7 @@ main.lst.1
 main.lst.2
 mainsyntax.nasm
 parsenodename.nasm
-stmtsexprs.txt 
+stmtsexprs.txt
 stnflgtbl.nasm
 test2
 test3
@@ -26,3 +26,5 @@ test4
 .claude/
 .vscode/
 
+!ebnfcomp/*.c
+ebnfcomp/ebnfcomp
