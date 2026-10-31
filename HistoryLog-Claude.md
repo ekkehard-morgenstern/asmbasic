@@ -82,3 +82,9 @@ Related files: `SESSION.md` (current state), `docs/roadmap.md` (open work).
 - Follow-up check after the commit: the user tagged `v0.1.0` (annotated, on this commit) with the script; `make` regenerated
   `verstr.inc` and the program greets with `AsmBASIC v0.1.0`, which confirms the makefile re-trigger. `verstr.inc` is tracked,
   so it shows as modified until committed.
+
+### a91853d — 2026-10-31 09:22:22 +0100 — "docs, version and Claude Code session updates"
+4 files, +30/-27.
+- Bookkeeping after `ee106c6`: `verstr.inc` regenerated for the tag `v0.1.0` (`make` after `bump_version.sh --minor`),
+  `docs/build-system.md` now states the tag/`make` re-trigger as verified, `SESSION.md` and this log moved forward.
+  No source changes.

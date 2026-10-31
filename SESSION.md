@@ -12,13 +12,13 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Never hand-edit generated files (see `docs/build-system.md`).
 
 ## Repo state
-- Branch `master` (main branch for PRs is `main`); latest commit `ee106c6` ("Further fixes and versioning tool, all by Claude Code", 2026-10-31); tag `v0.1.0` created with `bump_version.sh`.
+- Branch `master` (main branch for PRs is `main`); latest commit `a91853d` ("docs, version and Claude Code session updates", 2026-10-31); tag `v0.1.0` (on `ee106c6`) created with `bump_version.sh`.
 - Uncommitted at session start: `implnotes.txt` (new "Planned Features" chapter: variable storage, code generation,
   three-address code opcode list) and a number of untracked generated/scratch files (`*.inc`, `mainsyntax.nasm`,
   `parsenodename.nasm`, `stnflgtbl.nasm`, `main.ebnf`, `test2/3/4`, `foo.txt`, `.gitignore`, `.vscode/`, …).
 - Session docs were committed in `6e3b29d`; `ebnfcomp` was vendored in `8fa7859` (submodule removed);
   `6245add` and `d63337a` ("Various fixes by Claude Code": ebnfcomp warning, docs, makefile `-z noexecstack`, `tagtoverstr.pl`). `.claude/` is git-ignored (settings stay local).
-- Version string: `v0.1.0` (tag created with `bump_version.sh`; `verstr.inc` is tracked and was regenerated, uncommitted) (`verstr.inc`, derived from a git tag by `tagtoverstr.pl`).
+- Version string: `v0.1.0` (tag created with `bump_version.sh`; `verstr.inc` is tracked and committed with it) (`verstr.inc`, derived from a git tag by `tagtoverstr.pl`).
 
 ## Build / test status
 - **`make -B` succeeds** (exit 0, 2026-10-31). No warnings or notes any more (the last two were fixed). It regenerated all generated files,
