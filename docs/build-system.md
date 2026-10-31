@@ -92,7 +92,8 @@ Version = `vMAJOR.MINOR.BUILD` as a git tag (existing tags are lightweight). `bu
 Refuses an existing tag, a malformed version and (without `--force`) a dirty tree. It never pushes (`git push origin vX.Y.Z`).
 Afterwards `make` regenerates `verstr.inc` (`tagtoverstr.pl`; the makefile watches `.git/refs/tags` and `.git/packed-refs`)
 and relinks `main.o`. Tested in a throwaway repository (build/minor/major/set/annotate/dry-run/error cases) and as `--dry-run`
-here; **no real tag was created in this repository**, and the makefile re-trigger after a real tag was not exercised.
+here. Afterwards the user created the annotated tag `v0.1.0` on `ee106c6`; a plain `make` then regenerated `verstr.inc`
+(`v0.0.8` → `v0.1.0`), rebuilt `main.o`, relinked, and the greeting reads `AsmBASIC v0.1.0` (verified).
 `tagtoverstr.pl` prefers a `vN.N` found in the current *branch name* over the tag, so don't name branches like `v2`
 if you want the tag to show.
 

@@ -12,25 +12,7 @@ Related files: `SESSION.md` (current state), `docs/roadmap.md` (open work).
 
 ## Pending (not committed yet)
 
-### Session 2026-10-31 — fixing the known problems (docs/roadmap.md)
-- `tokens.nasm`: identifiers and string literals over 1004 bytes were silently truncated (`ucputcp` drops what doesn't fit).
-  New helper `tok_putcp` detects the dropped code point and sets `tok_toolong` (cleared in `tok_prepare`); `tokenize`
-  then fails. `main.nasm` prints `? Identifier or string too long` (other failures still `? Tokenizer failure`).
-  Correction: my earlier note that identifiers were *not* truncated was a measurement error — both were cut at 1004.
-- `main.nasm`: empty input lines are ignored in `main_loop` and `tokenizer_test` (they used to end the program; EOF still does);
-  `--curses` prints a notice and falls back to stdio; a file name argument prints a "not implemented" notice.
-- `makefile`: dependency gaps closed — `ebnfcomp` binary on its sources, `mainsyntax.nasm` on the binary,
-  `mainsyntax.inc`/`keywords.inc` as by-products, `verstr.inc` on `tagtoverstr.pl` + git HEAD/tags, `sdlconcev.inc` for
-  `sdlconsrv/cli.o`, `keywords.inc` for `cookedsyntree.o`.
-- `README.md`, `implnotes.txt`, `CLAUDE.md`, `docs/{build-system,language,tokenizer,usage,roadmap}.md`, `SESSION.md` updated.
-- Verified: `make -B` clean (no warnings); idents/strings: 1004 ok, 1005/2000 rejected; empty lines (stdio and `--testtok`);
-  notices for `-c`/file; incremental `make` after touching `tokenlist.txt`, `ebnfcomp/main.c`, `tagtoverstr.pl`; sample run
-  unchanged. SDL mode not exercised.
-- New `bump_version.sh` (build/minor/major bump, `--set`, `--annotate`, `--dry-run`, `--force`, `--show`; creates a local tag only).
-  Tested in a throwaway repo under the scratchpad; in this repo only `--show`/`--dry-run` were run (no tag created).
-  Documented in `README.md`, `docs/build-system.md`; `CLAUDE.md` forbids Claude from running it without `--dry-run`.
-- Not fixed on purpose (design decisions): cooked tree flattening, fixed buffer sizes, unused keywords, detokenizer
-  output format, scratch files (git-ignored), no tests.
+(nothing pending)
 
 ## Log
 
@@ -76,3 +58,27 @@ Related files: `SESSION.md` (current state), `docs/roadmap.md` (open work).
 2 files, +27/-28.
 - `HistoryLog-Claude.md` / `SESSION.md`: moved the `d63337a` entry into the log, sorted the entries chronologically,
   refreshed the session state. Bookkeeping only.
+
+### ee106c6 — 2026-10-31 09:17:43 +0100 — "Further fixes and versioning tool, all by Claude Code"
+14 files, +283/-50.
+- `tokens.nasm`: identifiers and string literals over 1004 bytes were silently truncated (`ucputcp` drops what doesn't fit).
+  New helper `tok_putcp` detects the dropped code point and sets `tok_toolong` (cleared in `tok_prepare`); `tokenize`
+  then fails. `main.nasm` prints `? Identifier or string too long` (other failures still `? Tokenizer failure`).
+  Correction: my earlier note that identifiers were *not* truncated was a measurement error — both were cut at 1004.
+- `main.nasm`: empty input lines are ignored in `main_loop` and `tokenizer_test` (they used to end the program; EOF still does);
+  `--curses` prints a notice and falls back to stdio; a file name argument prints a "not implemented" notice.
+- `makefile`: dependency gaps closed — `ebnfcomp` binary on its sources, `mainsyntax.nasm` on the binary,
+  `mainsyntax.inc`/`keywords.inc` as by-products, `verstr.inc` on `tagtoverstr.pl` + git HEAD/tags, `sdlconcev.inc` for
+  `sdlconsrv/cli.o`, `keywords.inc` for `cookedsyntree.o`.
+- `README.md`, `implnotes.txt`, `CLAUDE.md`, `docs/{build-system,language,tokenizer,usage,roadmap}.md`, `SESSION.md` updated.
+- Verified: `make -B` clean (no warnings); idents/strings: 1004 ok, 1005/2000 rejected; empty lines (stdio and `--testtok`);
+  notices for `-c`/file; incremental `make` after touching `tokenlist.txt`, `ebnfcomp/main.c`, `tagtoverstr.pl`; sample run
+  unchanged. SDL mode not exercised.
+- New `bump_version.sh` (build/minor/major bump, `--set`, `--annotate`, `--dry-run`, `--force`, `--show`; creates a local tag only).
+  Tested in a throwaway repo under the scratchpad; in this repo only `--show`/`--dry-run` were run (no tag created).
+  Documented in `README.md`, `docs/build-system.md`; `CLAUDE.md` forbids Claude from running it without `--dry-run`.
+- Not fixed on purpose (design decisions): cooked tree flattening, fixed buffer sizes, unused keywords, detokenizer
+  output format, scratch files (git-ignored), no tests.
+- Follow-up check after the commit: the user tagged `v0.1.0` (annotated, on this commit) with the script; `make` regenerated
+  `verstr.inc` and the program greets with `AsmBASIC v0.1.0`, which confirms the makefile re-trigger. `verstr.inc` is tracked,
+  so it shows as modified until committed.
