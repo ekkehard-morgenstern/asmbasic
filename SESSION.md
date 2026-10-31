@@ -1,6 +1,6 @@
 # Session state
 
-Maintained by Claude; updated whenever work in a session changes something. Last update: 2026-10-31 (project onboarding).
+Maintained by Claude; updated whenever work in a session changes something. Last update: 2026-10-31 (ebnfcomp vendored).
 Read this first when resuming; details are in `docs/` (start with `docs/README.md`) and `CLAUDE.md`.
 
 ## Standing rules
@@ -16,14 +16,12 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Uncommitted at session start: `implnotes.txt` (new "Planned Features" chapter: variable storage, code generation,
   three-address code opcode list) and a number of untracked generated/scratch files (`*.inc`, `mainsyntax.nasm`,
   `parsenodename.nasm`, `stnflgtbl.nasm`, `main.ebnf`, `test2/3/4`, `foo.txt`, `.gitignore`, `.vscode/`, …).
-- Session docs were committed in `6e3b29d`. `.claude/` is git-ignored (settings stay local). The `ebnfcomp` submodule shows
-  as dirty only because of its built binary.
-- Open question: vendoring `ebnfcomp` into this repo and dropping the submodule (commands given to the user, not yet applied).
+- Session docs were committed in `6e3b29d`; `ebnfcomp` was vendored in `8fa7859` (submodule removed) and
+  `6245add`. `.claude/` is git-ignored (settings stay local).
 - Version string: `v0.0.8` (`verstr.inc`, derived from a git tag by `tagtoverstr.pl`).
 
 ## Build / test status
-- **`make -B` succeeds** (exit 0, 2026-10-31). Warnings only: `ebnfcomp/main.c:653` unused-but-set variable, `grep` warning in
-  `extract_stnflgtbl.pl`, linker note that `cookedsyntree.o` lacks `.note.GNU-stack`. It regenerated all generated files,
+- **`make -B` succeeds** (exit 0, 2026-10-31). No warnings or notes any more (the last two were fixed). It regenerated all generated files,
   objects/listings and the `asmbasic` binary (no source edits).
 - Verified in `--stdio` mode: help, option handling, tokenizer round trips, raw/cooked tree printing, syntax errors,
   limits. **SDL mode was not exercised** (the process just waits; no display confirmed).
@@ -41,6 +39,10 @@ Read this first when resuming; details are in `docs/` (start with `docs/README.m
 - Docs written from the source, then checked against real `--stdio` output and corrected (see `HistoryLog-Claude.md`).
   Statements about SDL mode still come from reading the source only.
 - Created `HistoryLog-Claude.md` (Pending section holds this session).
+
+## Pending commit
+- `ebnfcomp/main.c` (unused variable removed), `makefile` (`-z noexecstack`), `tagtoverstr.pl` (grep pattern, version-ordered tag), `README.md`, `implnotes.txt`, `CLAUDE.md`, `docs/build-system.md`,
+  `docs/roadmap.md`, `SESSION.md`, `HistoryLog-Claude.md`.
 
 ## Next steps
 - See `docs/roadmap.md`. The user's own next step (per `implnotes.txt`) is variable storage + three-address code.

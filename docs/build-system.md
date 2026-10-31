@@ -6,7 +6,8 @@
 - SDL2 development files (`libsdl2-dev`)
 - Debian/Ubuntu: `sudo apt install build-essential nasm libsdl2-dev perl git`
 - Linux kernel ≥ 2.6.37 (epoll API; checked by `osversion.nasm`)
-- The `ebnfcomp` submodule must be present: `git clone --recursive <url>` (or `git submodule update --init`).
+- `ebnfcomp` is part of the repository (directory `ebnfcomp/`, vendored on 2026-10-31; it used to be a git submodule), so a
+  plain `git clone <url>` is enough.
 - On WSL use a native Linux file system, because file attributes (executable Perl scripts) matter.
 
 ## Targets (`makefile`)
@@ -15,10 +16,13 @@
 |---|---|
 | `make` / `make all` | builds `ebnfcomp/ebnfcomp` and `asmbasic`, then writes `echo ok >all` |
 | `make -B` | forced full rebuild — **recommended**, the dependency list is incomplete |
-| `make DEBUG=1` | assembles with `-g -F dwarf`, links with `-g -no-pie` (no `-s`) |
+| `make DEBUG=1` | assembles with `-g -F dwarf`, links with `-g -no-pie -z noexecstack` (no `-s`) |
 | `make clean` | `rm asmbasic *.o *.lst ebnfcomp/ebnfcomp` (does not remove generated `.inc`/`.nasm`) |
 
 Suffix rule: `nasm -f elf64 $(ASMOPT) -l $*.lst -o $@ $<` — each object also yields a listing `.lst`.
+`-z noexecstack` (also in the normal `-s -no-pie -z noexecstack`) marks the stack non-executable: the objects have no
+`.note.GNU-stack` section, which made the linker assume an executable stack (verified: `readelf -l asmbasic` showed
+`GNU_STACK RWE` before and `RW` now).
 Link: `gcc $(LNKOPT) -pthread -Wall -o asmbasic $(MODULES) -lrt -lSDL2`.
 
 `MODULES` = `main osversion cpuinfo locale unicode xalloc patchbay stdconsole sdlconsrv sdlconcli sdlconcev sdlconkbd
@@ -52,18 +56,22 @@ untracked in git (see `git status`) — whether they should be committed is the 
 | `extract_nodetext.pl` | string tables for node classes, terminal types, terminal branch types and node types used by tree printers. |
 | `extract_stnflgtbl.pl` | runs `egrep` on `mainsyntax.inc` for names containing `STMT`/`EXPR`; table `stnflgtbl` indexed by node-type number gives `STNF_STMT`/`STNF_EXPR`/0. |
 | `extract_csntext.pl` | reads `equ 0x..` constants from the `.inc` files, groups by alphabetic prefix, emits `<prefix>_table` of string pointers. |
-| `tagtoverstr.pl` | derives the version string from the current/most recent git tag. |
+| `tagtoverstr.pl` | version string: a `v<digits.dots>` found in the current branch name, else the highest tag in version order (`git tag --list --sort=version:refname`, so `v0.0.10` beats `v0.0.9`). The grep pattern for the current branch is `'^\\*'` inside Perl backticks — the backslash must be doubled, or `grep` warns about a leading `*`. |
 | `extract_font.pl` | `8x12font1.txt` format: `!!8x12` header, `#XX` hex character code, then 12 rows of 8 chars (`.` = off, `o` = on), blank line between characters. |
 
 Not wired into the makefile: `x`, `x1`, `xx`, `sizes.c` and `test*.c` are scratch files (the `*.c` files are git-ignored).
 
-## `ebnfcomp` (submodule)
+## `ebnfcomp` (vendored)
 
-Separate repository `https://github.com/ekkehard-morgenstern/ebnfcomp.git` (GPLv3, © 2019). A Wirth-style EBNF
+Lives in `ebnfcomp/` (single source file `main.c`, own `makefile`, `README.md`, `LICENSE`, test grammars `test.ebnf`,
+`bintest.ebnf`). Originally the separate repository `https://github.com/ekkehard-morgenstern/ebnfcomp.git` (GPLv3, © 2019,
+pinned at v1.4.2 / `e5fb206`), copied in as plain files; the built binary `ebnfcomp/ebnfcomp` is git-ignored (`*.c` in
+`.gitignore` has the exception `!ebnfcomp/*.c`). A Wirth-style EBNF
 compiler with regular expression and rudimentary binary matching (`WORD:len BYTE*len`). With `--asm` it emits NASM
 tables (`mainsyntax_branches`, `mainsyntax_parsingTable`) and an include file with constants (`NT_*` node-type numbers,
 `NC_*` node classes, `TT_*`/`TB_*` terminal types). Known limitations are in its README (regular expression support is
-partly broken; only one length-prefixed sequence per chain). Treat it as an external tool; changes go in its own repo.
+partly broken; only one length-prefixed sequence per chain). Since it is vendored, fixes are made here directly; the upstream repository is no longer the source of truth (the unused
+variable `token` in `read_production` was removed here and does not exist upstream).
 
 ## Dependency caveats
 

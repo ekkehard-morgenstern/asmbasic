@@ -1,13 +1,13 @@
 #!/usr/bin/perl -w
 
-my $branch = `git branch --no-color | egrep '^\*' | cut -d ' ' -f 2- | egrep -o 'v[0-9.]+'`;
+my $branch = `git branch --no-color | egrep '^\\*' | cut -d ' ' -f 2- | egrep -o 'v[0-9.]+'`;
 chomp $branch;
 
 my $lasttag;
 if ( $branch ne '' ) {
     $lasttag = $branch;
 } else {
-    $lasttag = `git tag --list | tail -n 1`;
+    $lasttag = `git tag --list --sort=version:refname | tail -n 1`;
     chomp $lasttag;
 }
 

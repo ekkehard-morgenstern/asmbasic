@@ -650,7 +650,7 @@ static treenode_t* read_production( void ) {
     // production  := [ 'TOKEN' ] identifier ':=' expr '.' .
     skip_whitespace();
     char tmp[6]; int pos = 0;
-    tmp[0] = '\0'; bool token = false;
+    tmp[0] = '\0';
     switch ( ch ) {
         case 'T':
             do {
@@ -659,7 +659,6 @@ static treenode_t* read_production( void ) {
             } while ( pos < 5 && ch >= 'A' && ch <= 'Z' );
             tmp[pos] = '\0';
             if ( strcmp( tmp, "TOKEN" ) == 0 ) {
-                token = true;
                 break;
             }
             putback( ch );

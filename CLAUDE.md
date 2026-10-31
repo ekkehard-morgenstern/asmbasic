@@ -32,7 +32,7 @@ Full documentation is in `docs/` — start with `docs/README.md`.
 
 ```
 sudo apt install build-essential nasm libsdl2-dev perl     # prerequisites (Debian/Ubuntu)
-git clone --recursive <url>                                 # ebnfcomp is a submodule
+git clone <url>                                             # ebnfcomp is vendored in ebnfcomp/ (no submodule)
 make -B                                                     # full rebuild (dependencies in makefile are incomplete)
 make DEBUG=1 -B                                             # -g -F dwarf, no -s
 ./asmbasic --help

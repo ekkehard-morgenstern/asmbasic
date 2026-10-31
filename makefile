@@ -21,12 +21,15 @@
 #       Mail: Ekkehard Morgenstern, Mozartstr. 1, D-76744 Woerth am Rhein,
 #             Germany, Europe
 
+# NOTE: the NASM sources carry no .note.GNU-stack section; the code never executes
+# anything on the stack, so tell the linker explicitly (avoids the "implies
+# executable stack" warning and keeps the stack non-executable).
 ifdef DEBUG
 ASMOPT=-g -F dwarf
-LNKOPT=-g -no-pie
+LNKOPT=-g -no-pie -z noexecstack
 else
 ASMOPT=
-LNKOPT=-s -no-pie
+LNKOPT=-s -no-pie -z noexecstack
 endif
 
 .SUFFIXES:	.nasm .ebnf .pl

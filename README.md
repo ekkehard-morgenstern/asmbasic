@@ -7,7 +7,7 @@ Code in this repository can change and be restructured without prior warning.
 
 ## Cloning The Repository
 
-To clone the repository, don't forget the "--recursive" option on "git clone".
+Clone the repository with "git clone URL". The EBNF compiler (ebnfcomp) used during the build is part of the repository (directory "ebnfcomp"); no submodules are involved.
 
 ## Compiling
 
@@ -19,7 +19,7 @@ After making sure you have those tools and libraries, type "make -B" to build th
 ## On WSL
 
 Make sure you have the Linux version of "git" and "perl" installed. Use "sudo apt install git perl" (on Ubuntu/WSL) to accomplish that.
-Since file attributes are important, make sure you're on a native Linux file system before issuing the "git clone --recursive URL" command.
+Since file attributes are important, make sure you're on a native Linux file system before issuing the "git clone URL" command.
 
 ## Using
 

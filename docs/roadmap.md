@@ -34,14 +34,14 @@ Open work. Keep this file current (see `CLAUDE.md`). Status date: 2026-10-31.
   clears it).
 - Over-long string literals are silently truncated at ≈1004 bytes instead of producing an error (verified).
 - The detokenized text differs from the input (upper-casing, odd spacing like ` PRINT"a"; B$`, hex numbers shown as `&H1.FEP7`); fine for debugging but not a faithful `LIST`.
-- Build noise: `ebnfcomp` compiles with a `-Wunused-but-set-variable` warning (`main.c:653`), `extract_stnflgtbl.pl` makes `grep` warn (`* am Anfang des Ausdrucks`), and the linker warns that `cookedsyntree.o` lacks a `.note.GNU-stack` section (executable stack).
+- None of the NASM sources has a `.note.GNU-stack` section; the makefile links with `-z noexecstack` instead. A new module that really needs an executable stack would have to change that.
 - Cooked tree is not fully flattened: `(generic)` and single-operand `S_EXPRESSION` wrapper nodes remain.
 - Buffer sizes are fixed (`linebuf` 16 KiB, `tokenpad` 32 KiB, ident/string 1 KiB); long lines may fail tokenization.
 - Keywords exist in `tokenlist.txt` that the grammar does not use (see `language.md`).
-- `make -B` leaves the `ebnfcomp` submodule dirty in `git status` (build outputs inside it).
 - Generated files and scratch files are untracked/stale in the working tree (`main.lst.1/.2`, `csnrefinery.*`, `x*`, `test*`,
   `make-*.log`, `all`). `.gitignore` itself is untracked.
-- `ebnfcomp`'s regular-expression support is partly broken (its README); grammar regexes should stay simple.
+- `ebnfcomp`'s regular-expression support is partly broken (its README); grammar regexes should stay simple. It is now
+  vendored, so it can be fixed in this repository.
 - Only code points 0–255 are fully supported; the font is 256 glyphs.
 - No automated tests.
 
